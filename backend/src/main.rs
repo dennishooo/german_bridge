@@ -1,13 +1,4 @@
-mod server;
-mod config;
-mod connection;
-mod lobby;
-mod game;
-mod game_state;
-mod protocol;
-mod router;
-mod error;
-mod game_logic;
+use german_bridge_backend::{server, config};
 
 #[tokio::main]
 async fn main() {
