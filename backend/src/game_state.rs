@@ -104,7 +104,7 @@ impl GameState {
               self.round_number, self.cards_per_player, self.trump_suit);
         
         // Deal the cards
-        let hands = self.deck.deal(num_players);
+        let hands = self.deck.deal(num_players, self.cards_per_player);
         self.hands.clear();
         for (i, hand) in hands.into_iter().enumerate() {
             self.hands.insert(self.players[i], hand);

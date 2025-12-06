@@ -31,17 +31,21 @@ impl Deck {
         self.cards.shuffle(&mut rng);
     }
 
-    /// Deal cards evenly to the specified number of players
+    /// Deal a specific number of cards to each player
     /// Returns a vector of Hands, one for each player
-    pub fn deal(&mut self, num_players: usize) -> Vec<Hand> {
+    pub fn deal(&mut self, num_players: usize, cards_per_player: usize) -> Vec<Hand> {
         let mut hands = vec![Vec::new(); num_players];
         
         // Deal cards in round-robin fashion
+        let total_cards_to_deal = num_players * cards_per_player;
+        let mut cards_dealt = 0;
         let mut player_idx = 0;
-        while !self.cards.is_empty() {
+        
+        while cards_dealt < total_cards_to_deal && !self.cards.is_empty() {
             if let Some(card) = self.cards.pop() {
                 hands[player_idx].push(card);
                 player_idx = (player_idx + 1) % num_players;
+                cards_dealt += 1;
             }
         }
 
@@ -178,7 +182,7 @@ mod tests {
         let mut deck = Deck::new_german_bridge();
         deck.shuffle();
         
-        let hands = deck.deal(4);
+        let hands = deck.deal(4, 13);
         
         assert_eq!(hands.len(), 4, "Should create 4 hands");
         assert_eq!(hands[0].cards.len(), 13, "Each player should get 13 cards");
@@ -192,23 +196,37 @@ mod tests {
         let mut deck = Deck::new_german_bridge();
         deck.shuffle();
         
-        let hands = deck.deal(3);
+        let hands = deck.deal(3, 17);
         
         assert_eq!(hands.len(), 3, "Should create 3 hands");
-        // 52 cards / 3 players = 17 cards each, with 1 card remaining
-        assert_eq!(hands[0].cards.len(), 18, "First player gets 18 cards");
-        assert_eq!(hands[1].cards.len(), 17, "Second player gets 17 cards");
-        assert_eq!(hands[2].cards.len(), 17, "Third player gets 17 cards");
+        assert_eq!(hands[0].cards.len(), 17, "Each player should get 17 cards");
+        assert_eq!(hands[1].cards.len(), 17, "Each player should get 17 cards");
+        assert_eq!(hands[2].cards.len(), 17, "Each player should get 17 cards");
     }
 
     #[test]
-    fn test_deal_empties_deck() {
+    fn test_deal_specific_number_of_cards() {
         let mut deck = Deck::new_german_bridge();
         deck.shuffle();
         
-        let _hands = deck.deal(4);
+        let hands = deck.deal(4, 5);
         
-        assert_eq!(deck.cards.len(), 0, "Deck should be empty after dealing");
+        assert_eq!(hands.len(), 4, "Should create 4 hands");
+        assert_eq!(hands[0].cards.len(), 5, "Each player should get 5 cards");
+        assert_eq!(hands[1].cards.len(), 5, "Each player should get 5 cards");
+        assert_eq!(hands[2].cards.len(), 5, "Each player should get 5 cards");
+        assert_eq!(hands[3].cards.len(), 5, "Each player should get 5 cards");
+        assert_eq!(deck.cards.len(), 32, "Deck should have 32 cards remaining");
+    }
+
+    #[test]
+    fn test_deal_empties_deck_when_dealing_all() {
+        let mut deck = Deck::new_german_bridge();
+        deck.shuffle();
+        
+        let _hands = deck.deal(4, 13);
+        
+        assert_eq!(deck.cards.len(), 0, "Deck should be empty after dealing all cards");
     }
 
     #[test]
@@ -216,7 +234,7 @@ mod tests {
         let mut deck = Deck::new_german_bridge();
         deck.shuffle();
         
-        let hands = deck.deal(4);
+        let hands = deck.deal(4, 13);
         
         // Collect all cards from all hands
         let mut all_cards: Vec<&Card> = Vec::new();
