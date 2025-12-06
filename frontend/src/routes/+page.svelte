@@ -8,8 +8,8 @@
   import Button from '../lib/components/Button.svelte';
 
   // Auto-connect on mount
-  onMount(() => {
-    ws.connect();
+  onMount(async () => {
+    await ws.connect();
   });
 
   $: connected = $ws.connected;
@@ -29,7 +29,7 @@
             {/if}
         {:else}
             <span class="status disconnected">Disconnected</span>
-            <Button size="sm" on:click={() => ws.connect()}>Connect</Button>
+            <Button size="sm" on:click={async () => await ws.connect()}>Connect</Button>
         {/if}
         <ThemeToggle />
     </div>
