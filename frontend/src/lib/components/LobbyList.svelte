@@ -4,7 +4,6 @@
   import Input from './Input.svelte';
 
   let newLobbySettings = {
-    player_count: "Four" as "Three" | "Four",
     turn_timeout_secs: 30,
     allow_reconnect: true
   };

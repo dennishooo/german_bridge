@@ -26,15 +26,11 @@
     <div class="info-card">
       <div class="setting">
         <span class="label">Players:</span>
-        <span class="value">{lobby.settings.player_count}</span>
+        <span class="value">{lobby.players.length}</span>
       </div>
       <div class="setting">
         <span class="label">Timeout:</span>
         <span class="value">{lobby.settings.turn_timeout_secs}s</span>
-      </div>
-      <div class="setting">
-        <span class="label">Status:</span>
-        <span class="value">{lobby.players.length} Joined</span>
       </div>
     </div>
 
@@ -97,7 +93,7 @@
 
   .info-card {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(2, 1fr);
     gap: var(--spacing-md);
     background: var(--bg-tertiary);
     padding: var(--spacing-md);

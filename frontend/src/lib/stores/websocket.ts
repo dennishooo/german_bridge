@@ -32,7 +32,6 @@ export type GamePhase =
   | "GameComplete";
 
 export interface LobbySettings {
-  player_count: "Three" | "Four";
   turn_timeout_secs: number;
   allow_reconnect: boolean;
 }
