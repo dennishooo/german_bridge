@@ -168,8 +168,11 @@ function createWebSocketStore() {
                     if (newState.game) newState.game.your_turn = true;
                     break;
                 case 'PlayerAction':
-                    const { player_id, action } = msg.payload;
+                    const { player_id, action, next_player } = msg.payload;
                     if (newState.game) {
+                        // Update current_player
+                        if (next_player) newState.game.current_player = next_player;
+
                         // Handle PlayCard
                         if (action.PlayCard) {
                             const card = action.PlayCard;

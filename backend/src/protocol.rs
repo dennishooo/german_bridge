@@ -94,7 +94,7 @@ pub enum ServerMessage {
     // Game updates
     GameState { state: PlayerGameView },
     YourTurn { valid_actions: Vec<PlayerAction> },
-    PlayerAction { player_id: PlayerId, action: PlayerAction },
+    PlayerAction { player_id: PlayerId, action: PlayerAction, next_player: PlayerId },
     TrickComplete { winner: PlayerId, points: u8 },
     GameOver { final_scores: HashMap<PlayerId, i32> },
 

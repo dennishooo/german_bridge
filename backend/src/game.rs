@@ -180,9 +180,21 @@ impl GameManager {
         }
 
         // Broadcast PlayerAction message to all players
+        //  game.state.current_player IS the next player.
+        
+        let games_read = self.games.read().await;
+        let next_player = if let Some(g) = games_read.get(&game_id_copy) {
+            g.state.current_player
+        } else {
+            // Should not happen, but fallback
+            player_id 
+        };
+        drop(games_read);
+
         let action_msg = ServerMessage::PlayerAction {
             player_id,
             action,
+            next_player,
         };
         self.connection_manager.broadcast_to_players(&players, action_msg).await;
 
@@ -281,12 +293,14 @@ impl GameManager {
                     }
 
                     let players = game.players.clone();
+                    let next_player = game.state.current_player;
                     drop(games_write);
 
                     // Broadcast the auto action
                     let action_msg = ServerMessage::PlayerAction {
                         player_id: current_player,
                         action,
+                        next_player,
                     };
                     connection_manager.broadcast_to_players(&players, action_msg).await;
                 }
