@@ -27,7 +27,7 @@ pub struct AppState {
     pub connection_manager: Arc<ConnectionManager>,
     pub game_manager: Arc<GameManager>,
     pub message_router: Arc<crate::router::MessageRouter>,
-    pub db: sqlx::SqlitePool,
+    pub db: sea_orm::DatabaseConnection,
 }
 
 pub async fn run_server(
@@ -35,7 +35,7 @@ pub async fn run_server(
     connection_manager: Arc<ConnectionManager>,
     game_manager: Arc<GameManager>,
     message_router: Arc<crate::router::MessageRouter>,
-    db_pool: sqlx::SqlitePool,
+    db_pool: sea_orm::DatabaseConnection,
 ) -> Result<(), ServerError> {
     let addr = format!("{}:{}", config.host, config.port);
     

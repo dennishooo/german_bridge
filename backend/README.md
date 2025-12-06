@@ -13,17 +13,21 @@ The game progresses through rounds with increasing numbers of cards dealt, start
 
 ## Features
 
-- Real-time WebSocket communication
-- Concurrent game sessions
-- Player reconnection support
-- Automatic turn timeouts
-- Lobby system with matchmaking
-- Full German Bridge rule implementation
+- **Real-time WebSocket communication** with JWT authentication
+- **PostgreSQL database** with SeaORM for data persistence
+- **User authentication** with Argon2 password hashing
+- **Concurrent game sessions** with lobby system
+- **Player reconnection support**
+- **Automatic turn timeouts**
+- **Full German Bridge rule implementation**
+- **Username display** instead of session IDs
 
 ## Prerequisites
 
-- Rust 1.70 or higher
-- Cargo (comes with Rust)
+- **Rust 1.70 or higher**
+- **Cargo** (comes with Rust)
+- **PostgreSQL** (via Docker or local installation)
+- **Docker** (recommended for PostgreSQL)
 
 ### Installing Rust
 
@@ -51,17 +55,52 @@ cd backend
 cargo build --release
 ```
 
+## Database Setup
+
+### Using Docker (Recommended)
+
+```bash
+cd backend
+docker-compose up -d
+```
+
+This starts PostgreSQL on port 5432 with:
+- Database: `german_bridge`
+- User: `postgres`
+- Password: `example`
+
+### Manual PostgreSQL Setup
+
+```bash
+# Create database
+createdb german_bridge
+
+# Set environment variable
+export DATABASE_URL="postgres://postgres:example@localhost:5432/german_bridge"
+```
+
+### Migrations
+
+Migrations run automatically on server startup using SeaORM. Tables created:
+- `users` - User accounts with hashed passwords
+- `lobbies` - Game lobbies
+- `lobby_players` - Lobby membership
+- `games` - Game sessions
+- `game_players` - Game participation
+- `game_rounds` - Round history
+
 ## Configuration
 
 The server can be configured using environment variables:
 
-| Variable            | Description                                     | Default   |
-| ------------------- | ----------------------------------------------- | --------- |
-| `SERVER_HOST`       | Server bind address                             | `0.0.0.0` |
-| `SERVER_PORT`       | Server port                                     | `8080`    |
-| `MAX_CONNECTIONS`   | Maximum concurrent connections                  | `1000`    |
-| `TURN_TIMEOUT_SECS` | Default turn timeout in seconds                 | `30`      |
-| `LOG_LEVEL`         | Logging level (trace, debug, info, warn, error) | `info`    |
+| Variable            | Description                                     | Default                                                      |
+| ------------------- | ----------------------------------------------- | ------------------------------------------------------------ |
+| `DATABASE_URL`      | PostgreSQL connection string                    | `postgres://postgres:example@localhost:5432/german_bridge`   |
+| `SERVER_HOST`       | Server bind address                             | `0.0.0.0`                                                    |
+| `SERVER_PORT`       | Server port                                     | `8080`                                                       |
+| `MAX_CONNECTIONS`   | Maximum concurrent connections                  | `1000`                                                       |
+| `TURN_TIMEOUT_SECS` | Default turn timeout in seconds                 | `30`                                                         |
+| `LOG_LEVEL`         | Logging level (trace, debug, info, warn, error) | `info`                                                       |
 
 ### Example Configuration
 
@@ -249,8 +288,9 @@ The repository includes test scripts for quick testing:
 ```
 backend/
 ├── Cargo.toml              # Dependencies and project config
+├── docker-compose.yml      # PostgreSQL setup
 ├── src/
-│   ├── main.rs             # Entry point
+│   ├── main.rs             # Entry point with DB connection
 │   ├── server.rs           # Server setup and routing
 │   ├── config.rs           # Configuration management
 │   ├── connection.rs       # WebSocket connection manager
@@ -260,6 +300,16 @@ backend/
 │   ├── protocol.rs         # Message protocol definitions
 │   ├── router.rs           # Message routing
 │   ├── error.rs            # Error types
+│   ├── auth.rs             # JWT and password utilities
+│   ├── entities/           # SeaORM entity definitions
+│   │   ├── user.rs         # User entity
+│   │   ├── lobby.rs        # Lobby entity
+│   │   ├── game.rs         # Game entity
+│   │   └── ...             # Other entities
+│   ├── migrator/           # Database migrations
+│   │   └── migration/      # Migration files
+│   ├── handlers/           # HTTP request handlers
+│   │   └── auth.rs         # Auth endpoints
 │   └── game_logic/         # Game rules implementation
 │       ├── mod.rs
 │       ├── card.rs         # Card types and logic
@@ -275,11 +325,22 @@ backend/
 
 ## Endpoints
 
-### WebSocket
+### HTTP (Authentication)
 
-- `ws://localhost:8080/ws` - Main WebSocket endpoint for game communication
+- `POST /api/register` - Register new user account
+  ```json
+  {"username": "player1", "password": "secret123"}
+  ```
+- `POST /api/login` - Login and receive JWT token
+  ```json
+  {"username": "player1", "password": "secret123"}
+  ```
 
-### HTTP
+### WebSocket (Authenticated)
+
+- `ws://localhost:8080/ws?token=<JWT>` - Main WebSocket endpoint (requires JWT)
+
+### HTTP (Monitoring)
 
 - `GET /health` - Health check endpoint (returns 200 OK)
 - `GET /stats` - Server statistics (active games, connected players)

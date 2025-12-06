@@ -1,12 +1,14 @@
 pub mod server;
 pub mod config;
 pub mod connection;
-pub mod lobby;
 pub mod game;
+pub mod game_logic;
 pub mod game_state;
+pub mod lobby;
 pub mod protocol;
 pub mod router;
-pub mod error;
-pub mod game_logic;
 pub mod auth;
 pub mod handlers;
+pub mod error;
+pub mod entities;
+pub mod migrator;

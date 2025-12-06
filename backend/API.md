@@ -6,18 +6,67 @@ The GBridge backend uses WebSocket connections for real-time bidirectional commu
 
 ## Connection
 
+### Authentication
+
+Before connecting to the WebSocket, you must first authenticate via HTTP to receive a JWT token.
+
+#### Register
+
+**Endpoint:** `POST /api/register`
+
+**Request:**
+```json
+{
+  "username": "player1",
+  "password": "secret123"
+}
+```
+
+**Response:**
+```json
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "username": "player1",
+  "user_id": "550e8400-e29b-41d4-a716-446655440000"
+}
+```
+
+#### Login
+
+**Endpoint:** `POST /api/login`
+
+**Request:**
+```json
+{
+  "username": "player1",
+  "password": "secret123"
+}
+```
+
+**Response:**
+```json
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "username": "player1",
+  "user_id": "550e8400-e29b-41d4-a716-446655440000"
+}
+```
+
 ### WebSocket Endpoint
 
 ```
-ws://localhost:8080/ws
+ws://localhost:8080/ws?token=<JWT_TOKEN>
 ```
+
+**Note:** The JWT token from login/register must be included as a query parameter.
 
 ### Connection Flow
 
-1. Client connects to WebSocket endpoint
-2. Server sends `Connected` message with assigned player ID
-3. Client can now send messages to interact with lobbies and games
-4. Server sends updates as game state changes
+1. Client registers or logs in via HTTP to receive JWT token
+2. Client connects to WebSocket endpoint with token: `ws://localhost:8080/ws?token=<JWT>`
+3. Server validates JWT and sends `Connected` message with player ID
+4. Client can now send messages to interact with lobbies and games
+5. Server sends updates as game state changes
 
 ## Message Protocol
 

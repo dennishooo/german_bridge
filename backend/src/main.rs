@@ -1,6 +1,8 @@
-use german_bridge_backend::{server, config, connection, game, lobby, router};
+use german_bridge_backend::{server, config, connection, game, lobby, router, migrator};
 use std::sync::Arc;
 use std::panic;
+use sea_orm::{Database, ConnectOptions};
+use sea_orm_migration::MigratorTrait;
 
 #[tokio::main]
 async fn main() {
@@ -38,24 +40,22 @@ async fn main() {
 
     tracing::info!("German Bridge Backend starting...");
 
-    // Initialize Database
-    let database_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite:users.db".to_string());
+    // Initialize Database (PostgreSQL)
+    let database_url = std::env::var("DATABASE_URL")
+        .unwrap_or_else(|_| "postgres://postgres:example@localhost:5432/german_bridge".to_string());
     tracing::info!("Connecting to database at {}", database_url);
 
-    // Create database file if it doesn't exist (sqlite only)
-    if !std::path::Path::new("users.db").exists() {
-        std::fs::File::create("users.db").expect("Failed to create database file");
-    }
+    let mut opt = ConnectOptions::new(&database_url);
+    opt.max_connections(100)
+        .min_connections(5)
+        .sqlx_logging(false);
 
-    let db_pool = sqlx::sqlite::SqlitePoolOptions::new()
-        .max_connections(5)
-        .connect(&database_url)
+    let db = Database::connect(opt)
         .await
         .expect("Failed to connect to database");
 
-    // Run migrations
-    sqlx::migrate!("./migrations")
-        .run(&db_pool)
+    // Run migrations using SeaORM Migrator
+    migrator::Migrator::up(&db, None)
         .await
         .expect("Failed to run migrations");
     
@@ -65,12 +65,12 @@ async fn main() {
     let connection_manager = Arc::new(connection::ConnectionManager::new());
     tracing::info!("ConnectionManager initialized");
     
-    // Initialize GameManager with ConnectionManager reference
-    let game_manager = Arc::new(game::GameManager::new(Arc::clone(&connection_manager)));
+    // Initialize GameManager with ConnectionManager and Database references
+    let game_manager = Arc::new(game::GameManager::new(Arc::clone(&connection_manager), db.clone()));
     tracing::info!("GameManager initialized");
     
-    // Initialize LobbyManager with GameManager and ConnectionManager references
-    let lobby_manager = Arc::new(lobby::LobbyManager::new(Arc::clone(&game_manager), Arc::clone(&connection_manager)));
+    // Initialize LobbyManager with GameManager, ConnectionManager and Database references
+    let lobby_manager = Arc::new(lobby::LobbyManager::new(Arc::clone(&game_manager), Arc::clone(&connection_manager), db.clone()));
     tracing::info!("LobbyManager initialized");
     
     // Create MessageRouter with all manager references
@@ -82,7 +82,7 @@ async fn main() {
     tracing::info!("MessageRouter initialized");
     
     // Start the server
-    if let Err(e) = server::run_server(config, connection_manager, game_manager, message_router, db_pool).await {
+    if let Err(e) = server::run_server(config, connection_manager, game_manager, message_router, db).await {
         tracing::error!("Server error: {}", e);
         std::process::exit(1);
     }

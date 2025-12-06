@@ -9,6 +9,8 @@ use crate::game_state::GameState;
 use crate::protocol::{ServerMessage, PlayerAction, PlayerGameView};
 use crate::error::GameError;
 use tracing::{debug, info, warn};
+use sea_orm::{DatabaseConnection, ActiveModelTrait, EntityTrait, Set, QueryFilter, ColumnTrait};
+use chrono::Utc;
 
 pub type GameId = Uuid;
 
@@ -16,6 +18,7 @@ pub struct GameManager {
     games: Arc<RwLock<HashMap<GameId, Game>>>,
     connection_manager: Arc<ConnectionManager>,
     timer_handles: Arc<RwLock<HashMap<GameId, JoinHandle<()>>>>,
+    db: DatabaseConnection,
 }
 
 pub struct Game {
@@ -27,11 +30,12 @@ pub struct Game {
 
 impl GameManager {
     /// Create a new GameManager with a reference to ConnectionManager
-    pub fn new(connection_manager: Arc<ConnectionManager>) -> Self {
+    pub fn new(connection_manager: Arc<ConnectionManager>, db: DatabaseConnection) -> Self {
         Self {
             games: Arc::new(RwLock::new(HashMap::new())),
             connection_manager,
             timer_handles: Arc::new(RwLock::new(HashMap::new())),
+            db,
         }
     }
 
@@ -45,6 +49,11 @@ impl GameManager {
 
     /// Create a new game with the given players and broadcast GameStarting message
     pub async fn create_game(&self, players: Vec<PlayerId>) -> GameId {
+        self.create_game_from_lobby(players, None).await
+    }
+
+    /// Create a new game from a lobby with the given players and broadcast GameStarting message
+    pub async fn create_game_from_lobby(&self, players: Vec<PlayerId>, lobby_id: Option<Uuid>) -> GameId {
         // Generate unique game ID using UUID v4
         let game_id = Uuid::new_v4();
         let game_state = GameState::new(players.clone());
@@ -64,6 +73,32 @@ impl GameManager {
         games.insert(game_id, game);
         drop(games); // Release lock before broadcasting
 
+        // Persist to database
+        let game_model = crate::entities::game::ActiveModel {
+            id: Set(game_id),
+            lobby_id: Set(lobby_id),
+            state: Set(serde_json::json!({})), // Initial empty state
+            created_at: Set(Utc::now().into()),
+            completed_at: Set(None),
+        };
+        if let Err(e) = game_model.insert(&self.db).await {
+            warn!("Failed to persist game to DB: {}", e);
+        }
+
+        // Persist game_players
+        for player_id in &players {
+            if let Ok(player_uuid) = Uuid::parse_str(player_id) {
+                let player_model = crate::entities::game_player::ActiveModel {
+                    game_id: Set(game_id),
+                    player_id: Set(player_uuid),
+                    final_score: Set(None),
+                };
+                if let Err(e) = player_model.insert(&self.db).await {
+                    warn!("Failed to persist game_player to DB: {}", e);
+                }
+            }
+        }
+
         info!("Game {} created with {} players", game_id, players.len());
 
         // Broadcast GameStarting message to all players
@@ -79,6 +114,13 @@ impl GameManager {
 
     /// End a game and remove it from storage
     pub async fn end_game(&self, game_id: GameId) {
+        // Mark game as completed in DB
+        use sea_orm::sea_query::Expr;
+        let _ = crate::entities::game::Entity::update_many()
+            .col_expr(crate::entities::game::Column::CompletedAt, Expr::value(Utc::now()))
+            .filter(crate::entities::game::Column::Id.eq(game_id))
+            .exec(&self.db).await;
+        
         let mut games = self.games.write().await;
         if games.remove(&game_id).is_some() {
             info!("Game {} ended and removed", game_id);
@@ -171,10 +213,17 @@ impl GameManager {
 
         // If RoundComplete, don't auto-schedule. 
         // We wait for StartNextRound message.
-        if phase_after == crate::game_state::GamePhase::RoundComplete && phase_before != phase_after {
-             // Just notify players of new state (history is already in view)
-             // The current_player has already been updated to the *next* starter in GameState::complete_trick
-        }
+        // Save round history to DB
+        let round_data = if phase_after == crate::game_state::GamePhase::RoundComplete && phase_before != phase_after {
+            // Collect round data before dropping lock
+            let round_number = game.state.round_number;
+            let bids = game.state.player_bids.clone();
+            let tricks_won = game.state.tricks_won.clone();
+            let round_scores = game.state.round_scores.clone();
+            Some((round_number, bids, tricks_won, round_scores))
+        } else {
+            None
+        };
 
         // Release the write lock before broadcasting
         drop(games);
@@ -184,6 +233,21 @@ impl GameManager {
         // Broadcast phase change updates if any
         for (pid, view) in phase_change_updates {
              self.connection_manager.send_to_player(pid.clone(), ServerMessage::GameState { state: view }).await;
+        }
+        
+        // Persist round data to DB if round just completed
+        if let Some((round_number, bids, tricks_won, round_scores)) = round_data {
+            let round_model = crate::entities::game_round::ActiveModel {
+                id: sea_orm::ActiveValue::NotSet,
+                game_id: Set(game_id_copy),
+                round_number: Set(round_number as i32),
+                bids: Set(serde_json::json!(bids)),
+                tricks_won: Set(serde_json::json!(tricks_won)),
+                scores: Set(serde_json::json!(round_scores)),
+            };
+            if let Err(e) = round_model.insert(&self.db).await {
+                warn!("Failed to persist game_round to DB: {}", e);
+            }
         }
 
         // Broadcast PlayerAction message to all players
@@ -217,6 +281,24 @@ impl GameManager {
 
         // Broadcast GameOver when game ends
         if let Some(scores) = final_scores {
+            // Persist game completion and final scores to DB
+            use sea_orm::sea_query::Expr;
+            let _ = crate::entities::game::Entity::update_many()
+                .col_expr(crate::entities::game::Column::CompletedAt, Expr::value(Utc::now()))
+                .filter(crate::entities::game::Column::Id.eq(game_id_copy))
+                .exec(&self.db).await;
+            
+            // Save final scores for each player
+            for (pid, score) in &scores {
+                if let Ok(player_uuid) = Uuid::parse_str(pid) {
+                    let _ = crate::entities::game_player::Entity::update_many()
+                        .col_expr(crate::entities::game_player::Column::FinalScore, Expr::value(*score))
+                        .filter(crate::entities::game_player::Column::GameId.eq(game_id_copy))
+                        .filter(crate::entities::game_player::Column::PlayerId.eq(player_uuid))
+                        .exec(&self.db).await;
+                }
+            }
+            
             let game_over_msg = ServerMessage::GameOver {
                 final_scores: scores,
             };

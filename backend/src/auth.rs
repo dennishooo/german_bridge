@@ -6,18 +6,8 @@ use argon2::{
     Argon2
 };
 use serde::{Deserialize, Serialize};
-use sqlx::{FromRow, SqlitePool};
 use jsonwebtoken::{encode, decode, Header, Validation, EncodingKey, DecodingKey};
 use chrono::{Utc, Duration};
-
-#[derive(Clone, FromRow, Debug, Serialize)]
-pub struct User {
-    pub id: String,
-    pub username: String,
-    #[serde(skip)]
-    pub password_hash: String,
-    pub created_at: chrono::NaiveDateTime,
-}
 
 #[derive(Debug, Deserialize)]
 pub struct RegisterRequest {
@@ -46,10 +36,6 @@ pub struct Claims {
 }
 
 const JWT_SECRET: &str = "super_secret_key_change_me_in_prod";
-
-pub struct AuthState {
-    pub db: SqlitePool,
-}
 
 pub fn hash_password(password: &str) -> Result<String, String> {
     let salt = SaltString::generate(&mut OsRng);
