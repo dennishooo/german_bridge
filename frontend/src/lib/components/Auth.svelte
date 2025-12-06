@@ -53,6 +53,10 @@
     mode = mode === "login" ? "register" : "login";
     error = "";
   }
+
+  function handleLogout() {
+    ws.logout();
+  }
 </script>
 
 <div class="auth-container">

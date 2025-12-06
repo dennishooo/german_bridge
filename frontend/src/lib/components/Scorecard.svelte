@@ -12,10 +12,12 @@
   export let history: RoundResult[] = [];
   export let players: PlayerId[] = [];
   export let myPlayerId: string;
+  export let playerUsernames: Record<string, string> = {};
 
   function getPlayerName(id: string) {
       if (id === myPlayerId) return "You";
-      return `P${id.slice(0, 4)}`;
+      // Use the provided username mapping, fallback to abbreviated ID
+      return playerUsernames[id] || `P${id.slice(0, 4)}`;
   }
   
   // Calculate totals for the footer

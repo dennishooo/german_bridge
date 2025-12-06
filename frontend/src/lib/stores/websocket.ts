@@ -87,6 +87,8 @@ export interface AppState {
   validActions: ValidAction[] | null; // actions valid for *your* turn
   error: string | null;
   playerUsernames: Record<string, string>; // Map of player IDs to usernames (populated from lobby.players)
+  currentRoundBids: Record<string, number>; // Current round bids being accumulated
+  currentRoundMakes: Record<string, number>; // Current round tricks being made
 }
 
 const initialState: AppState = {
@@ -99,6 +101,8 @@ const initialState: AppState = {
   validActions: null,
   error: null,
   playerUsernames: {},
+  currentRoundBids: {},
+  currentRoundMakes: {},
 };
 
 export const ws = createWebSocketStore();
@@ -113,17 +117,17 @@ function createWebSocketStore() {
       // Try to get server IP from Tauri backend
       let serverIp: string;
       try {
-          serverIp = await invoke<string>("get_server_ip");
+        serverIp = await invoke<string>("get_server_ip");
       } catch (e) {
-          console.log("Tauri invoke failed, using browser location:", e);
-          serverIp = window.location.hostname;
+        console.log("Tauri invoke failed, using browser location:", e);
+        serverIp = window.location.hostname;
       }
-      
-      const host = serverIp || 'localhost';
+
+      const host = serverIp || "localhost";
       return `http://${host}:8080`;
     } catch (error) {
-       console.error("Failed to determine API URL:", error);
-       return 'http://localhost:8080';
+      console.error("Failed to determine API URL:", error);
+      return "http://localhost:8080";
     }
   }
 
@@ -134,25 +138,25 @@ function createWebSocketStore() {
       // Determine Host (similar logic as getApiUrl but for WS)
       let serverIp: string;
       try {
-          serverIp = await invoke<string>("get_server_ip");
+        serverIp = await invoke<string>("get_server_ip");
       } catch (e) {
-          serverIp = window.location.hostname;
+        serverIp = window.location.hostname;
       }
-      const host = serverIp || 'localhost';
-      
+      const host = serverIp || "localhost";
+
       // Append token if provided
       let url = `ws://${host}:8080/ws`;
       if (token) {
-          url += `?token=${encodeURIComponent(token)}`;
+        url += `?token=${encodeURIComponent(token)}`;
       }
-      
+
       console.log("Connecting to:", url);
       ws = new WebSocket(url);
     } catch (error) {
       console.error("Failed to determine connection URL:", error);
       return;
     }
-    
+
     ws.onopen = () => {
       console.log("Connected to WebSocket");
       // Start pinging to keep connection alive
@@ -229,7 +233,10 @@ function createWebSocketStore() {
           msg.payload.lobby.players.forEach((p: PlayerInfo) => {
             joinedUsernames[p.id] = p.username;
           });
-          newState.playerUsernames = { ...newState.playerUsernames, ...joinedUsernames };
+          newState.playerUsernames = {
+            ...newState.playerUsernames,
+            ...joinedUsernames,
+          };
           newState.validActions = null;
           newState.game = null;
           break;
@@ -241,20 +248,27 @@ function createWebSocketStore() {
             msg.payload.lobby.players.forEach((p: PlayerInfo) => {
               updatedUsernames[p.id] = p.username;
             });
-            newState.playerUsernames = { ...newState.playerUsernames, ...updatedUsernames };
+            newState.playerUsernames = {
+              ...newState.playerUsernames,
+              ...updatedUsernames,
+            };
           }
           break;
         case "LobbyList":
           newState.lobbies = msg.payload.lobbies;
           break;
 
-        // Game Messages
         case "GameStarting":
           // We need to request the game state to transition to the game view
           send("RequestGameState");
           break;
         case "GameState":
           newState.game = msg.payload.state;
+          // Reset current round tracking when game state is updated (new round)
+          if (newState.game?.phase === "Bidding") {
+            newState.currentRoundBids = {};
+            newState.currentRoundMakes = {};
+          }
           break;
         case "YourTurn":
           newState.validActions = msg.payload.valid_actions;
@@ -293,12 +307,24 @@ function createWebSocketStore() {
                 newState.game.your_turn = false;
               }
             }
+            // Handle Bid
+            if (action.Bid) {
+              newState.currentRoundBids = {
+                ...newState.currentRoundBids,
+                [player_id]: action.Bid.tricks,
+              };
+            }
           }
           break;
         case "TrickComplete":
-          // We don't clear the trick here anymore.
-          // We leave it visible until the next card is played (see PlayerAction above)
-          // or until the round ends (GameState update).
+          // Track that a player won a trick
+          if (msg.payload.winner) {
+            newState.currentRoundMakes = {
+              ...newState.currentRoundMakes,
+              [msg.payload.winner]:
+                (newState.currentRoundMakes[msg.payload.winner] || 0) + 1,
+            };
+          }
           break;
         case "GameOver":
           // Final scores are in payload
@@ -330,12 +356,16 @@ function createWebSocketStore() {
     listLobbies: () => send("ListLobbies"),
     placeBid: (bid: number) => {
       send("PlaceBid", { bid: { tricks: bid } });
-      // Optimistically hide the bid controls
+      // Optimistically hide the bid controls and track the bid
       update((s) => {
-        if (s.game) {
+        if (s.game && s.playerId) {
           return {
             ...s,
             validActions: null,
+            currentRoundBids: {
+              ...s.currentRoundBids,
+              [s.playerId]: bid,
+            },
             game: { ...s.game, your_turn: false },
           };
         }
@@ -347,5 +377,18 @@ function createWebSocketStore() {
     requestGameState: () => send("RequestGameState"),
     ping: () => send("Ping"),
     getApiUrl,
+    logout: () => {
+      // Close WebSocket connection
+      if (ws) {
+        ws.close();
+        ws = null;
+        clearInterval(pingInterval);
+      }
+      // Clear localStorage
+      localStorage.removeItem("auth_token");
+      localStorage.removeItem("auth_user");
+      // Reset store to initial state
+      set(initialState);
+    },
   };
 }

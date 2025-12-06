@@ -6,6 +6,8 @@
   import Button from './Button.svelte';
   import Scorecard from './Scorecard.svelte';
 
+  let showHistoryModal = false;
+
   $: game = $ws.game;
   $: myPlayerId = $ws.playerId;
   $: isMyTurn = game?.your_turn;
@@ -57,6 +59,17 @@
       }
   }
   $: trumpDisplay = getSuitDisplay(game?.trump_suit);
+
+  // Get current round's bid and make for the user
+  $: currentRound = game?.history?.[game.history.length - 1];
+  $: userBid = $ws.currentRoundBids[myPlayerId ?? ''] ?? '-';
+  $: userMake = $ws.currentRoundMakes[myPlayerId ?? ''] ?? '-';
+
+  function getPlayerBidMake(pid: string) {
+    const bid = $ws.currentRoundBids[pid] ?? '-';
+    const make = $ws.currentRoundMakes[pid] ?? '-';
+    return { bid, make };
+  }
 </script>
 
 {#if game}
@@ -64,10 +77,14 @@
     <div class="header">
         <div class="scores">
             {#each Object.entries(scores) as [pid, score]}
-                <div class="score-badge" class:active={game.current_player === pid}>
-                    <span class="name">{getPlayerName(pid)}</span>
-                    <span class="score">{score}</span>
-                </div>
+                {#key pid}
+                  {@const bidMake = getPlayerBidMake(pid)}
+                  <div class="score-badge" class:active={game.current_player === pid}>
+                      <span class="name">{getPlayerName(pid)}</span>
+                      <span class="bid-make">B:{bidMake.bid} M:{bidMake.make}</span>
+                      <span class="score">{score}</span>
+                  </div>
+                {/key}
             {/each}
         </div>
         <div class="game-info">
@@ -97,23 +114,51 @@
                     <span class="value">{game.trump_suit ?? 'None'}</span>
                 </div>
             </div>
+            <div class="info-item">
+                <span class="label">Your Bid</span>
+                <span class="value">{userBid}</span>
+            </div>
+            <div class="info-item">
+                <span class="label">Your Make</span>
+                <span class="value">{userMake}</span>
+            </div>
+            <Button size="sm" variant="secondary" on:click={() => (showHistoryModal = true)}>
+                📊 History
+            </Button>
         </div>
     </div>
 
     <div class="board">
-        <!-- Trick Area -->
-        <div class="trick-area">
-             {#if game.current_trick.length === 0}
-                <div class="empty-trick">Waiting for play...</div>
-             {:else}
-                {#each game.current_trick as [pid, card], i}
-                    <div class="played-card" style="--rotation: {i * 20 - (game.current_trick.length-1)*10}deg">
-                        <span class="player-label">{getPlayerName(pid)}</span>
-                        <Card rank={card.rank} suit={card.suit} />
-                    </div>
-                {/each}
-             {/if}
-        </div>
+        {#if phase === 'Bidding'}
+            <!-- Bidding Display -->
+            <div class="bidding-display">
+                <h3>Current Bids</h3>
+                <div class="bids-grid">
+                    {#each players as pid}
+                        {@const bidMake = getPlayerBidMake(pid)}
+                        <div class="bid-card" class:your-bid={pid === myPlayerId} class:awaiting={bidMake.bid === '-'}>
+                            <div class="bid-name">{getPlayerName(pid)}</div>
+                            <div class="bid-value">{bidMake.bid}</div>
+                            <div class="bid-label">tricks</div>
+                        </div>
+                    {/each}
+                </div>
+            </div>
+        {:else}
+            <!-- Trick Area -->
+            <div class="trick-area">
+                 {#if game.current_trick.length === 0}
+                    <div class="empty-trick">Waiting for play...</div>
+                 {:else}
+                    {#each game.current_trick as [pid, card], i}
+                        <div class="played-card" style="--rotation: {i * 20 - (game.current_trick.length-1)*10}deg">
+                            <span class="player-label">{getPlayerName(pid)}</span>
+                            <Card rank={card.rank} suit={card.suit} />
+                        </div>
+                    {/each}
+                 {/if}
+            </div>
+        {/if}
         
         <div class="status-message">
             {#if isMyTurn}
@@ -139,10 +184,23 @@
         />
     </div>
     
+    {#if showHistoryModal}
+        <!-- svelte-ignore a11y_click_events_have_key_events -->
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <div class="overlay" on:click={() => (showHistoryModal = false)} role="button" tabindex="0">
+            <!-- svelte-ignore a11y_click_events_have_key_events -->
+            <!-- svelte-ignore a11y_no_static_element_interactions -->
+            <div class="history-modal" on:click={(e) => e.stopPropagation()} role="dialog" tabindex="-1">
+                <button class="history-close-btn" on:click={() => (showHistoryModal = false)}>&times;</button>
+                <Scorecard {history} {players} myPlayerId={myPlayerId ?? ''} playerUsernames={$ws.playerUsernames} />
+            </div>
+        </div>
+    {/if}
+    
     {#if phase === 'RoundComplete'}
         <div class="overlay">
             <div class="round-summary">
-                <Scorecard {history} {players} myPlayerId={myPlayerId ?? ''} />
+                <Scorecard {history} {players} myPlayerId={myPlayerId ?? ''} playerUsernames={$ws.playerUsernames} />
                 <div class="summary-footer">
                     {#if game.current_player === myPlayerId}
                         <Button variant="primary" on:click={() => ws.startNextRound()}>
@@ -203,6 +261,13 @@
       font-size: 0.75rem;
       color: var(--text-secondary);
   }
+
+  .score-badge .bid-make {
+      font-size: 0.7rem;
+      color: var(--text-tertiary);
+      font-family: monospace;
+      margin: 2px 0;
+  }
   
   .score-badge .score {
       font-weight: bold;
@@ -249,6 +314,71 @@
       align-items: center;
       position: relative;
       background: radial-gradient(circle at center, var(--bg-secondary) 0%, var(--bg-primary) 100%);
+  }
+  
+  .bidding-display {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: var(--spacing-lg);
+  }
+
+  .bidding-display h3 {
+      margin: 0;
+      color: var(--text-primary);
+  }
+
+  .bids-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: var(--spacing-md);
+      width: 100%;
+      max-width: 500px;
+  }
+
+  .bid-card {
+      background: var(--bg-tertiary);
+      border: 2px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: var(--spacing-md);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: var(--spacing-xs);
+      transition: all 0.2s;
+  }
+
+  .bid-card.your-bid {
+      border-color: var(--color-primary);
+      box-shadow: 0 0 8px rgba(59, 130, 246, 0.3);
+  }
+
+  .bid-card.awaiting {
+      opacity: 0.6;
+      background: var(--bg-secondary);
+  }
+
+  .bid-name {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-primary);
+  }
+
+  .bid-value {
+      font-size: 2rem;
+      font-weight: bold;
+      color: var(--color-primary);
+      min-height: 2.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+  }
+
+  .bid-label {
+      font-size: 0.7rem;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
   }
   
   .trick-area {
@@ -366,6 +496,50 @@
       align-items: center;
       z-index: 50;
       backdrop-filter: blur(4px);
+  }
+
+  .history-modal {
+      background: var(--bg-secondary);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-xl);
+      border: 1px solid var(--border-color);
+      animation: slideIn 0.3s ease-out;
+      max-width: 95vw;
+      max-height: 90vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+  }
+
+  .history-close-btn {
+      position: absolute;
+      top: var(--spacing-md);
+      right: var(--spacing-md);
+      background: none;
+      border: none;
+      font-size: 1.5rem;
+      cursor: pointer;
+      color: var(--text-secondary);
+      padding: 0;
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: var(--radius-sm);
+      transition: all 0.2s;
+      z-index: 100;
+  }
+
+  .history-close-btn:hover {
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+  }
+
+  .history-modal :global(> div) {
+      overflow-y: auto;
+      flex: 1;
   }
 
   .round-summary {

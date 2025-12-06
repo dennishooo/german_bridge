@@ -32,6 +32,7 @@
             {#if $ws.username}
                 <span class="player-id">👤 {$ws.username}</span>
             {/if}
+            <Button size="sm" variant="secondary" on:click={() => ws.logout()}>Logout</Button>
         {:else}
             <span class="status disconnected">Disconnected</span>
             <Button size="sm" on:click={async () => await ws.connect()}>Connect</Button>
