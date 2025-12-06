@@ -118,24 +118,24 @@ async fn ws_handler(
         return (axum::http::StatusCode::UNAUTHORIZED, "Missing Token").into_response();
     };
     
-    let user_id = user_info.unwrap().sub; // We know it's Some here because of return above
+    let (user_id, username) = {
+        let claims = user_info.unwrap(); // We know it's Some here because of return above
+        (claims.sub, claims.username)
+    };
 
-    // Pass validated user_id to handle_socket (we might want to replace the random PlayerId with this User ID)
-    // Or we map UserID -> PlayerID in a new manager.
-    // OPTION: We use the UserID AS the PlayerID. UUID string vs u32/string. Protocol uses String alias.
-    // Let's use the User ID as the Player ID.
-    
-    ws.on_upgrade(move |socket| handle_socket(socket, app_state, user_id))
+    // Pass validated user_id and username to handle_socket
+    ws.on_upgrade(move |socket| handle_socket(socket, app_state, user_id, username))
 }
 
 async fn handle_socket(
     socket: WebSocket,
     app_state: Arc<AppState>,
     authenticated_user_id: String,
+    authenticated_username: String,
 ) {
     let connection_manager = Arc::clone(&app_state.connection_manager);
     let message_router = Arc::clone(&app_state.message_router);
-    info!("New Authenticated WebSocket connection: {}", authenticated_user_id);
+    info!("New Authenticated WebSocket connection: {} ({})", authenticated_user_id, authenticated_username);
     
     // Split the WebSocket into sender and receiver
     let (mut ws_sender, mut ws_receiver) = socket.split();
@@ -196,7 +196,7 @@ async fn handle_socket(
         info!("User {} connecting as new session", player_id);
         
         // Register the authenticated user as a player
-        connection_manager.register_player(player_id.clone(), tx).await;
+        connection_manager.register_player(player_id.clone(), authenticated_username.clone(), tx).await;
         
         // Send Connected message with player_id
         let connected_msg = ServerMessage::Connected { player_id: player_id.clone() };

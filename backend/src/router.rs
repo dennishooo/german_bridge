@@ -135,10 +135,21 @@ impl MessageRouter {
         
         // Get lobby info to send back
         if let Some(lobby) = self.lobby_manager.get_lobby(lobby_id).await {
+            // Build Vec<PlayerInfo>
+            let mut players = Vec::new();
+            for player_id in &lobby.players {
+                if let Some(username) = self.connection_manager.get_username(player_id).await {
+                    players.push(crate::protocol::PlayerInfo {
+                        id: player_id.clone(),
+                        username,
+                    });
+                }
+            }
+            
             let lobby_info = crate::protocol::LobbyInfo {
                 id: lobby.id,
-                host: lobby.host,
-                players: lobby.players.clone(),
+                host: lobby.host.clone(),
+                players,
                 max_players: lobby.max_players,
                 settings: lobby.settings.clone(),
             };
@@ -182,11 +193,21 @@ impl MessageRouter {
 
             // Broadcast update to remaining players if lobby still exists
             if let Some(lobby) = self.lobby_manager.get_lobby(lobby_id).await {
-                // ... (broadcast LobbyUpdated code) ...
+                // Build Vec<PlayerInfo>
+                let mut players = Vec::new();
+                for player_id in &lobby.players {
+                    if let Some(username) = self.connection_manager.get_username(player_id).await {
+                        players.push(crate::protocol::PlayerInfo {
+                            id: player_id.clone(),
+                            username,
+                        });
+                    }
+                }
+                
                 let lobby_info = crate::protocol::LobbyInfo {
                     id: lobby.id,
-                    host: lobby.host,
-                    players: lobby.players.clone(),
+                    host: lobby.host.clone(),
+                    players,
                     max_players: lobby.max_players,
                     settings: lobby.settings.clone(),
                 };

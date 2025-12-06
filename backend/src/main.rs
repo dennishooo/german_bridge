@@ -69,8 +69,8 @@ async fn main() {
     let game_manager = Arc::new(game::GameManager::new(Arc::clone(&connection_manager)));
     tracing::info!("GameManager initialized");
     
-    // Initialize LobbyManager with GameManager reference
-    let lobby_manager = Arc::new(lobby::LobbyManager::new(Arc::clone(&game_manager)));
+    // Initialize LobbyManager with GameManager and ConnectionManager references
+    let lobby_manager = Arc::new(lobby::LobbyManager::new(Arc::clone(&game_manager), Arc::clone(&connection_manager)));
     tracing::info!("LobbyManager initialized");
     
     // Create MessageRouter with all manager references

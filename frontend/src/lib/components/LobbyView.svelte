@@ -41,12 +41,12 @@
     <div class="players-list">
       <h3>Players</h3>
       <ul>
-        {#each lobby.players as player}
-          <li class:me={player === $ws.playerId} class:host={player === lobby.host}>
-            <span class="name">Player {player.slice(0, 8)}...</span>
+        {#each lobby.players as playerInfo}
+          <li class:me={playerInfo.id === $ws.playerId} class:host={playerInfo.id === lobby.host}>
+            <span class="name">{playerInfo.username}</span>
             <div class="badges">
-                {#if player === $ws.playerId}<span class="badge me">You</span>{/if}
-                {#if player === lobby.host}<span class="badge host">Host</span>{/if}
+                {#if playerInfo.id === $ws.playerId}<span class="badge me">You</span>{/if}
+                {#if playerInfo.id === lobby.host}<span class="badge host">Host</span>{/if}
             </div>
           </li>
         {/each}

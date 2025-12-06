@@ -29,8 +29,8 @@
     <div class="header-controls">
         {#if connected}
             <span class="status connected">Connected</span>
-            {#if $ws.playerId}
-                <span class="player-id" title={$ws.playerId}>ID: {$ws.playerId.slice(0, 4)}...</span>
+            {#if $ws.username}
+                <span class="player-id">👤 {$ws.username}</span>
             {/if}
         {:else}
             <span class="status disconnected">Disconnected</span>

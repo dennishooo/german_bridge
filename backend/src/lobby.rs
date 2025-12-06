@@ -13,6 +13,7 @@ pub type LobbyId = Uuid;
 pub struct LobbyManager {
     lobbies: Arc<RwLock<HashMap<LobbyId, Lobby>>>,
     game_manager: Arc<GameManager>,
+    connection_manager: Arc<crate::connection::ConnectionManager>,
 }
 
 #[derive(Clone)]
@@ -38,10 +39,11 @@ impl Lobby {
 }
 
 impl LobbyManager {
-    pub fn new(game_manager: Arc<GameManager>) -> Self {
+    pub fn new(game_manager: Arc<GameManager>, connection_manager: Arc<crate::connection::ConnectionManager>) -> Self {
         Self {
             lobbies: Arc::new(RwLock::new(HashMap::new())),
             game_manager,
+            connection_manager,
         }
     }
 
@@ -125,16 +127,27 @@ impl LobbyManager {
     pub async fn list_lobbies(&self) -> Vec<crate::protocol::LobbyInfo> {
         let lobbies = self.lobbies.read().await;
         
-        let joinable_lobbies: Vec<_> = lobbies.values()
-            .filter(|lobby| !lobby.is_full())
-            .map(|lobby| crate::protocol::LobbyInfo {
+        let mut joinable_lobbies = Vec::new();
+        for lobby in lobbies.values().filter(|lobby| !lobby.is_full()) {
+            // Build Vec<PlayerInfo>
+            let mut players = Vec::new();
+            for player_id in &lobby.players {
+                if let Some(username) = self.connection_manager.get_username(player_id).await {
+                    players.push(crate::protocol::PlayerInfo {
+                        id: player_id.clone(),
+                        username,
+                    });
+                }
+            }
+            
+            joinable_lobbies.push(crate::protocol::LobbyInfo {
                 id: lobby.id,
                 host: lobby.host.clone(),
-                players: lobby.players.clone(),
+                players,
                 max_players: lobby.max_players,
                 settings: lobby.settings.clone(),
-            })
-            .collect();
+            });
+        }
         
         debug!("Listing {} joinable lobbies", joinable_lobbies.len());
         joinable_lobbies

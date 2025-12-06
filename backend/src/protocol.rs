@@ -59,10 +59,16 @@ pub struct PlayerGameView {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PlayerInfo {
+    pub id: PlayerId,
+    pub username: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LobbyInfo {
     pub id: LobbyId,
     pub host: PlayerId,
-    pub players: Vec<PlayerId>,
+    pub players: Vec<PlayerInfo>,
     pub max_players: usize,
     pub settings: GameSettings,
 }

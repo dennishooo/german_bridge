@@ -18,6 +18,7 @@ pub struct ConnectionManager {
 
 pub struct PlayerSession {
     pub id: PlayerId,
+    pub username: String,
     pub ws_sender: mpsc::UnboundedSender<Message>,
     pub connected_at: Instant,
     pub last_activity: Instant,
@@ -40,16 +41,17 @@ impl ConnectionManager {
     /// Register a new player connection with a random ID and return it
     pub async fn add_player(&self, ws_sender: mpsc::UnboundedSender<Message>) -> PlayerId {
         let player_id = Uuid::new_v4().to_string();
-        self.register_player(player_id.clone(), ws_sender).await;
+        self.register_player(player_id.clone(), "Guest".to_string(), ws_sender).await;
         player_id
     }
 
     /// Register a player with a specific ID (used for auth)
-    pub async fn register_player(&self, player_id: PlayerId, ws_sender: mpsc::UnboundedSender<Message>) {
+    pub async fn register_player(&self, player_id: PlayerId, username: String, ws_sender: mpsc::UnboundedSender<Message>) {
         let now = Instant::now();
         
         let session = PlayerSession {
             id: player_id.clone(),
+            username: username.clone(),
             ws_sender,
             connected_at: now,
             last_activity: now,
@@ -60,7 +62,7 @@ impl ConnectionManager {
         let mut sessions = self.sessions.write().await;
         sessions.insert(player_id.clone(), session);
         
-        debug!("Player {} connected", player_id);
+        debug!("Player {} ({}) connected", player_id, username);
     }
 
     /// Remove a player connection
@@ -208,6 +210,12 @@ impl ConnectionManager {
             .filter(|(_, session)| session.is_active)
             .map(|(id, _)| id.clone())
             .collect()
+    }
+
+    /// Get username for a player ID
+    pub async fn get_username(&self, player_id: &PlayerId) -> Option<String> {
+        let sessions = self.sessions.read().await;
+        sessions.get(player_id).map(|session| session.username.clone())
     }
 
     /// Get connection statistics

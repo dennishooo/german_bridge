@@ -37,10 +37,15 @@ export interface LobbySettings {
   allow_reconnect: boolean;
 }
 
+export interface PlayerInfo {
+  id: string;
+  username: string;
+}
+
 export interface Lobby {
   id: string;
   host: string;
-  players: string[];
+  players: PlayerInfo[];
   max_players: number;
   settings: LobbySettings;
 }
@@ -75,21 +80,25 @@ export interface ValidAction {
 export interface AppState {
   connected: boolean;
   playerId: string | null;
+  username: string | null;
   lobby: Lobby | null;
   game: GameState | null;
   lobbies: Lobby[]; // For the lobby list
   validActions: ValidAction[] | null; // actions valid for *your* turn
   error: string | null;
+  playerUsernames: Record<string, string>; // Map of player IDs to usernames (populated from lobby.players)
 }
 
 const initialState: AppState = {
   connected: false,
   playerId: null,
+  username: null,
   lobby: null,
   game: null,
   lobbies: [],
   validActions: null,
   error: null,
+  playerUsernames: {},
 };
 
 export const ws = createWebSocketStore();
@@ -191,6 +200,11 @@ function createWebSocketStore() {
         case "Connected":
           newState.connected = true;
           newState.playerId = msg.payload.player_id;
+          // Load username from localStorage
+          const storedUsername = localStorage.getItem("auth_user");
+          if (storedUsername) {
+            newState.username = storedUsername;
+          }
           send("ListLobbies");
           break;
         case "Pong":
@@ -210,12 +224,24 @@ function createWebSocketStore() {
           break;
         case "LobbyJoined":
           newState.lobby = msg.payload.lobby;
+          // Populate playerUsernames from lobby.players
+          const joinedUsernames: Record<string, string> = {};
+          msg.payload.lobby.players.forEach((p: PlayerInfo) => {
+            joinedUsernames[p.id] = p.username;
+          });
+          newState.playerUsernames = { ...newState.playerUsernames, ...joinedUsernames };
           newState.validActions = null;
           newState.game = null;
           break;
         case "LobbyUpdated":
           if (newState.lobby && newState.lobby.id === msg.payload.lobby.id) {
             newState.lobby = msg.payload.lobby;
+            // Populate playerUsernames from lobby.players
+            const updatedUsernames: Record<string, string> = {};
+            msg.payload.lobby.players.forEach((p: PlayerInfo) => {
+              updatedUsernames[p.id] = p.username;
+            });
+            newState.playerUsernames = { ...newState.playerUsernames, ...updatedUsernames };
           }
           break;
         case "LobbyList":

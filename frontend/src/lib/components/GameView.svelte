@@ -30,9 +30,9 @@
   }
   
   function getPlayerName(id: string) {
-      if (id === myPlayerId) return "You";
-      // In a real app we might have a map of names
-      return `Player ${id.slice(0, 4)}`;
+    if (id === myPlayerId) return "You";
+    // Get username from store's playerUsernames map
+    return $ws.playerUsernames[id] || `Player ${id.slice(0, 4)}`;
   }
 
   function getSuitDisplay(suit: string | null | undefined) {
