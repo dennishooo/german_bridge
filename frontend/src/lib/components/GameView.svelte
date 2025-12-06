@@ -31,6 +31,29 @@
       // In a real app we might have a map of names
       return `Player ${id.slice(0, 4)}`;
   }
+
+  function getSuitDisplay(suit: string | null | undefined) {
+      if (!suit) return { icon: "Ø", color: "var(--text-secondary)" };
+      switch (suit) {
+          case "Hearts": return { icon: "♥️", color: "#e53935" };
+          case "Diamonds": return { icon: "♦️", color: "#e53935" };
+          case "Clubs": return { icon: "♣️", color: "var(--text-primary)" };
+          case "Spades": return { icon: "♠️", color: "var(--text-primary)" };
+          default: return { icon: suit, color: "var(--text-primary)" };
+      }
+  }
+
+  function getPhaseLabel(p: string | undefined) {
+      if (!p) return "";
+      switch(p) {
+          case "Bidding": return "Bidding";
+          case "Playing": return "Playing";
+          case "RoundComplete": return "Round End";
+          case "GameComplete": return "Game Over";
+          default: return p;
+      }
+  }
+  $: trumpDisplay = getSuitDisplay(game?.trump_suit);
 </script>
 
 {#if game}
@@ -47,11 +70,29 @@
         <div class="game-info">
             <div class="info-item">
                 <span class="label">Phase</span>
-                <span class="value">{phase}</span>
+                <div class="value-row">
+                    {#if phase === 'Bidding'}
+                        <!-- Speech Bubble Icon -->
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                    {:else if phase === 'Playing'}
+                        <!-- Layers/Cards Icon -->
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>
+                    {:else if phase === 'RoundComplete'}
+                        <!-- Flag Icon -->
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path><line x1="4" y1="22" x2="4" y2="15"></line></svg>
+                    {:else if phase === 'GameComplete'}
+                        <!-- Trophy Icon -->
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path><path d="M4 22h16"></path><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"></path><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"></path><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"></path></svg>
+                    {/if}
+                    <span class="value">{getPhaseLabel(phase)}</span>
+                </div>
             </div>
              <div class="info-item">
                 <span class="label">Trump</span>
-                <span class="value">{game.trump_suit ?? 'None'}</span>
+                <div class="value-row" style="color: {trumpDisplay.color}">
+                    <span class="suit-icon">{trumpDisplay.icon}</span>
+                    <span class="value">{game.trump_suit ?? 'None'}</span>
+                </div>
             </div>
         </div>
     </div>
@@ -184,6 +225,17 @@
   
   .info-item .value {
       font-weight: bold;
+  }
+  
+  .value-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+  }
+  
+  .suit-icon {
+      font-size: 1.2rem;
+      line-height: 1;
   }
   
   .board {
