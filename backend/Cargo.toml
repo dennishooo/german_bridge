@@ -3,6 +3,14 @@ name = "german-bridge-backend"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+name = "german_bridge_backend"
+path = "src/lib.rs"
+
+[[bin]]
+name = "german-bridge-backend"
+path = "src/main.rs"
+
 [dependencies]
 axum = { version = "0.7", features = ["ws"] }
 tokio = { version = "1", features = ["full"] }
