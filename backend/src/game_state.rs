@@ -304,24 +304,32 @@ impl GameState {
             info!("Round {} complete. Scores: {:?}", self.round_number, self.round_scores);
             
             // Check if game should continue
-            if self.should_continue_game() {
-                // Advance to next round
-                self.round_number += 1;
-                // Rotate first bidder
-                let current_index = self.players.iter()
-                    .position(|p| *p == self.first_bidder)
-                    .unwrap_or(0);
-                let next_index = (current_index + 1) % self.players.len();
-                self.first_bidder = self.players[next_index];
-                
-                self.start_round();
-            } else {
+            if !self.should_continue_game() {
                 self.phase = GamePhase::GameComplete;
                 info!("Game complete! Final scores: {:?}", self.total_scores);
             }
+            
+            // Note: We no longer auto-start the next round here.
+            // The GameManager will trigger advance_to_next_round after a delay.
         }
         
         Ok(())
+    }
+
+    /// Advance to the next round (called by GameManager after delay)
+    pub fn advance_to_next_round(&mut self) {
+        if self.phase == GamePhase::RoundComplete && self.should_continue_game() {
+             // Advance to next round
+            self.round_number += 1;
+            // Rotate first bidder
+            let current_index = self.players.iter()
+                .position(|p| *p == self.first_bidder)
+                .unwrap_or(0);
+            let next_index = (current_index + 1) % self.players.len();
+            self.first_bidder = self.players[next_index];
+            
+            self.start_round();
+        }
     }
     
     /// Calculate scores for the round using ScoreCalculator

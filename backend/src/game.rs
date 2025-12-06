@@ -169,6 +169,45 @@ impl GameManager {
             None
         };
 
+        // If RoundComplete, schedule next round
+        if phase_after == crate::game_state::GamePhase::RoundComplete && phase_before != phase_after {
+            let games = Arc::clone(&self.games);
+            let connection_manager = Arc::clone(&self.connection_manager);
+            
+            tokio::spawn(async move {
+                // Wait for 5 seconds to let players see the scores
+                tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                
+                let mut games_write = games.write().await;
+                if let Some(game) = games_write.get_mut(&game_id_copy) {
+                    game.state.advance_to_next_round();
+                    
+                    // If round advanced cleanly, phase should now be Bidding
+                    if game.state.phase == crate::game_state::GamePhase::Bidding {
+                         // Broadcast new state (cards dealt, etc)
+                         // We need to send individual states due to hands
+                         for pid in &game.players {
+                            let view = game.state.get_player_view(*pid, game.id);
+                            connection_manager.send_to_player(*pid, ServerMessage::GameState { state: view }).await;
+                            
+                            // Also send valid actions to the first player
+                            if *pid == game.state.current_player {
+                                let valid_actions = game.state.get_valid_actions(*pid);
+                                let turn_msg = ServerMessage::YourTurn { valid_actions };
+                                connection_manager.send_to_player(*pid, turn_msg).await;
+                            }
+                         }
+                    } else if game.state.phase == crate::game_state::GamePhase::GameComplete {
+                         // Should have been handled above, but just in case
+                         let game_over_msg = ServerMessage::GameOver {
+                            final_scores: game.state.total_scores.clone(),
+                        };
+                        connection_manager.broadcast_to_players(&game.players, game_over_msg).await;
+                    }
+                }
+            });
+        }
+
         // Release the write lock before broadcasting
         drop(games);
 

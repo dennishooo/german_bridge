@@ -94,6 +94,23 @@
             onPlayCard={handlePlayCard} 
         />
     </div>
+    
+    {#if phase === 'RoundComplete'}
+        <div class="overlay">
+            <div class="round-summary">
+                <h2>Round Complete!</h2>
+                <div class="summary-scores">
+                    {#each Object.entries(scores) as [pid, score]}
+                        <div class="summary-item">
+                            <span class="name">{getPlayerName(pid)}</span>
+                            <span class="score">{score}</span>
+                        </div>
+                    {/each}
+                </div>
+                <p>Starting next round...</p>
+            </div>
+        </div>
+    {/if}
   </div>
 {:else}
   <div class="loading">Loading game state...</div>
@@ -280,5 +297,56 @@
       height: 100vh;
       font-size: 1.5rem;
       color: var(--text-secondary);
+  }
+
+  .overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.7);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 50;
+      backdrop-filter: blur(4px);
+  }
+
+  .round-summary {
+      background: var(--bg-secondary);
+      padding: var(--spacing-xl);
+      border-radius: var(--radius-lg);
+      text-align: center;
+      box-shadow: var(--shadow-xl);
+      border: 1px solid var(--border-color);
+      animation: slideIn 0.3s ease-out;
+      min-width: 300px;
+  }
+
+  @keyframes slideIn {
+      from { transform: translateY(20px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+  }
+
+  .summary-scores {
+      display: flex;
+      flex-direction: column;
+      gap: var(--spacing-sm);
+      margin: var(--spacing-lg) 0;
+  }
+
+  .summary-item {
+      display: flex;
+      justify-content: space-between;
+      padding: var(--spacing-sm);
+      background: var(--bg-tertiary);
+      border-radius: var(--radius-md);
+      font-size: 1.1rem;
+  }
+  
+  .summary-item .score {
+      font-weight: bold;
+      color: var(--color-primary-500);
   }
 </style>
