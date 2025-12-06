@@ -34,7 +34,7 @@
       </div>
       <div class="setting">
         <span class="label">Status:</span>
-        <span class="value">{lobby.players.length} / {lobby.max_players} Joined</span>
+        <span class="value">{lobby.players.length} Joined</span>
       </div>
     </div>
 

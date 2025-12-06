@@ -232,7 +232,16 @@ function createWebSocketStore() {
         },
         startGame: () => send('StartGame'),
         listLobbies: () => send('ListLobbies'),
-        placeBid: (bid: number) => send('PlaceBid', { bid: { tricks: bid } }),
+        placeBid: (bid: number) => {
+            send('PlaceBid', { bid: { tricks: bid } });
+            // Optimistically hide the bid controls
+            update(s => {
+                if (s.game) {
+                    return { ...s, validActions: null, game: { ...s.game, your_turn: false } };
+                }
+                return s;
+            });
+        },
         playCard: (card: Card) => send('PlayCard', { card }),
         requestGameState: () => send('RequestGameState'),
         ping: () => send('Ping')

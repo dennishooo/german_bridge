@@ -33,7 +33,7 @@
             <div class="lobby-info">
               <h3>Lobby {lobby.id.slice(0, 8)}...</h3>
               <p>Host: {lobby.host.slice(0, 8)}...</p>
-              <p>Players: {lobby.players.length} / {lobby.max_players}</p>
+              <p>Players: {lobby.players.length}</p>
             </div>
             <Button on:click={() => joinLobby(lobby.id)} disabled={lobby.players.length >= lobby.max_players}>
               {lobby.players.length >= lobby.max_players ? 'Full' : 'Join'}
@@ -51,13 +51,7 @@
 
   <div class="section form-section">
     <h2>Create Lobby</h2>
-    <div class="form-group">
-      <label for="player-count">Players</label>
-      <select id="player-count" bind:value={newLobbySettings.player_count}>
-        <option value="Three">3 Players</option>
-        <option value="Four">4 Players</option>
-      </select>
-    </div>
+
 
     <div class="form-group">
         <label for="timeout">Turn Timeout (sec)</label>
