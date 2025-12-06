@@ -39,6 +39,7 @@ impl MessageRouter {
         debug!("Routing message from player {}: {:?}", player_id, message);
 
         // Match on ClientMessage variants and route to appropriate handlers
+        // Each handler is isolated and errors won't affect other games
         let result = match message {
             // Lobby message handlers
             ClientMessage::CreateLobby { settings } => {
@@ -75,16 +76,16 @@ impl MessageRouter {
         };
 
         // Convert errors to ServerMessage::Error and send to client
-        if let Err(e) = result {
+        // This ensures errors are logged and communicated without crashing
+        if let Err(e) = &result {
             error!("Error routing message from player {}: {}", player_id, e);
             let error_msg = ServerMessage::Error {
                 message: e.to_string(),
             };
             self.connection_manager.send_to_player(player_id, error_msg).await;
-            return Err(e);
         }
 
-        Ok(())
+        result
     }
 
     // Lobby message handlers

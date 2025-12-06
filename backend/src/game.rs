@@ -94,6 +94,7 @@ impl GameManager {
     }
 
     /// Handle a player action (bid or card play)
+    /// Errors are isolated to this specific game and won't affect other games
     pub async fn handle_player_action(
         &self,
         game_id: GameId,
@@ -104,6 +105,7 @@ impl GameManager {
         self.cancel_turn_timer(game_id).await;
 
         // Get mutable access to the game
+        // Using a scoped lock ensures other games can be accessed concurrently
         let mut games = self.games.write().await;
         let game = games.get_mut(&game_id)
             .ok_or(GameError::GameNotFound)?;
@@ -114,12 +116,14 @@ impl GameManager {
         }
 
         // Validate the action before applying
+        // Any validation errors are caught and returned without affecting game state
         game.state.validate_action(player_id, &action)?;
 
         // Store state before applying action to detect phase changes
         let trick_complete_before = game.state.current_trick.is_complete(game.players.len());
 
         // Apply the action to update state
+        // If this fails, the game state remains unchanged
         game.state.apply_action(player_id, action.clone())?;
 
         // Get the list of players for broadcasting

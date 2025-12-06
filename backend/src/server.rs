@@ -26,22 +26,25 @@ pub struct ServerConfig {
 pub struct AppState {
     pub connection_manager: Arc<ConnectionManager>,
     pub game_manager: Arc<GameManager>,
+    pub message_router: Arc<crate::router::MessageRouter>,
 }
 
-pub async fn run_server(config: ServerConfig) -> Result<(), ServerError> {
+pub async fn run_server(
+    config: ServerConfig,
+    connection_manager: Arc<ConnectionManager>,
+    game_manager: Arc<GameManager>,
+    message_router: Arc<crate::router::MessageRouter>,
+) -> Result<(), ServerError> {
     let addr = format!("{}:{}", config.host, config.port);
     
     info!("Starting server on {}", addr);
     info!("Configuration: max_connections={}, turn_timeout={}s, log_level={}", 
           config.max_connections, config.turn_timeout_secs, config.log_level);
     
-    // Create shared state
-    let connection_manager = Arc::new(ConnectionManager::new());
-    let game_manager = Arc::new(GameManager::new(Arc::clone(&connection_manager)));
-    
     let app_state = Arc::new(AppState {
         connection_manager,
         game_manager,
+        message_router,
     });
     
     // Build the Axum router with shared state
@@ -77,15 +80,16 @@ async fn ws_handler(
     let reconnect_player_id = params.get("player_id")
         .and_then(|id| id.parse::<PlayerId>().ok());
     
-    let connection_manager = Arc::clone(&app_state.connection_manager);
-    ws.on_upgrade(move |socket| handle_socket(socket, connection_manager, reconnect_player_id))
+    ws.on_upgrade(move |socket| handle_socket(socket, app_state, reconnect_player_id))
 }
 
 async fn handle_socket(
     socket: WebSocket,
-    connection_manager: Arc<ConnectionManager>,
+    app_state: Arc<AppState>,
     reconnect_player_id: Option<PlayerId>,
 ) {
+    let connection_manager = Arc::clone(&app_state.connection_manager);
+    let message_router = Arc::clone(&app_state.message_router);
     info!("New WebSocket connection established");
     
     // Split the WebSocket into sender and receiver
@@ -171,13 +175,17 @@ async fn handle_socket(
     });
     
     // Spawn a task to receive messages from the WebSocket
+    // Errors in this task are isolated and won't affect other connections
     let connection_manager_clone = connection_manager.clone();
+    let message_router_clone = message_router.clone();
     let mut recv_task = tokio::spawn(async move {
         while let Some(result) = ws_receiver.next().await {
             match result {
                 Ok(msg) => {
-                    if let Err(e) = handle_message(player_id, msg, &connection_manager_clone).await {
+                    // Wrap message handling to catch any errors
+                    if let Err(e) = handle_message(player_id, msg, &connection_manager_clone, &message_router_clone).await {
                         warn!("Error handling message from player {}: {}", player_id, e);
+                        // Continue processing other messages despite error
                     }
                 }
                 Err(e) => {
@@ -220,6 +228,7 @@ async fn handle_message(
     player_id: crate::connection::PlayerId,
     msg: Message,
     connection_manager: &ConnectionManager,
+    message_router: &crate::router::MessageRouter,
 ) -> Result<(), String> {
     // Update player activity
     connection_manager.update_activity(player_id).await;
@@ -232,10 +241,12 @@ async fn handle_message(
             match serde_json::from_str::<ClientMessage>(&text) {
                 Ok(client_msg) => {
                     debug!("Parsed message from player {}: {:?}", player_id, client_msg);
-                    // TODO: Route message to appropriate handler
-                    // For now, just handle Ping
-                    if matches!(client_msg, ClientMessage::Ping) {
-                        connection_manager.send_to_player(player_id, ServerMessage::Pong).await;
+                    
+                    // Route message to appropriate handler
+                    if let Err(e) = message_router.route_message(player_id, client_msg).await {
+                        let error_msg = format!("Failed to route message: {}", e);
+                        warn!("Error routing message from player {}: {}", player_id, error_msg);
+                        return Err(error_msg);
                     }
                     Ok(())
                 }
@@ -257,10 +268,12 @@ async fn handle_message(
             match serde_json::from_slice::<ClientMessage>(&data) {
                 Ok(client_msg) => {
                     debug!("Parsed binary message from player {}: {:?}", player_id, client_msg);
-                    // TODO: Route message to appropriate handler
-                    // For now, just handle Ping
-                    if matches!(client_msg, ClientMessage::Ping) {
-                        connection_manager.send_to_player(player_id, ServerMessage::Pong).await;
+                    
+                    // Route message to appropriate handler
+                    if let Err(e) = message_router.route_message(player_id, client_msg).await {
+                        let error_msg = format!("Failed to route message: {}", e);
+                        warn!("Error routing message from player {}: {}", player_id, error_msg);
+                        return Err(error_msg);
                     }
                     Ok(())
                 }
