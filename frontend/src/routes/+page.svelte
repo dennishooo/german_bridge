@@ -24,6 +24,9 @@
     <div class="header-controls">
         {#if connected}
             <span class="status connected">Connected</span>
+            {#if $ws.playerId}
+                <span class="player-id" title={$ws.playerId}>ID: {$ws.playerId.slice(0, 4)}...</span>
+            {/if}
         {:else}
             <span class="status disconnected">Disconnected</span>
             <Button size="sm" on:click={() => ws.connect()}>Connect</Button>
@@ -92,6 +95,15 @@
   .status.disconnected {
       background: var(--color-error);
       color: white;
+  }
+
+  .player-id {
+      font-family: monospace;
+      font-size: 0.8rem;
+      background: var(--bg-tertiary);
+      padding: 2px 6px;
+      border-radius: var(--radius-sm);
+      color: var(--text-secondary);
   }
   
   .title {

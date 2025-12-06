@@ -4,11 +4,8 @@
 
   $: lobby = $ws.lobby;
   $: isHost = lobby && lobby.host === $ws.playerId;
-  $: canStart = isHost && lobby && lobby.players.length === lobby.max_players; // Or maybe min 3?
-  // API says 3 or 4 players. Settings dictate max.
-  // Actually settings.player_count is "Three" or "Four".
-  // So we need exact match usually?
-  // Let's assume match.
+  // Allow starting with 2+ players for testing/flexibility, matching backend logic
+  $: canStart = isHost && lobby && lobby.players.length >= 2;
 
   function startGame() {
     ws.startGame();

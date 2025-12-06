@@ -157,7 +157,8 @@ function createWebSocketStore() {
                 
                 // Game Messages
                 case 'GameStarting':
-                    // Transition will happen when we get GameState
+                    // We need to request the game state to transition to the game view
+                    send('RequestGameState');
                     break;
                 case 'GameState':
                     newState.game = msg.payload.state;

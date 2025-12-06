@@ -52,4 +52,19 @@ pub enum RouterError {
 
     #[error("Unknown message type")]
     UnknownMessage,
+
+    #[error("{0}")]
+    Generic(String),
+}
+
+impl From<String> for RouterError {
+    fn from(s: String) -> Self {
+        RouterError::Generic(s)
+    }
+}
+
+impl From<&str> for RouterError {
+    fn from(s: &str) -> Self {
+        RouterError::Generic(s.to_string())
+    }
 }

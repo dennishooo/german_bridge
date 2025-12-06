@@ -6,7 +6,7 @@ use crate::lobby::{LobbyManager, LobbyId};
 use crate::game::{GameManager, GameId};
 use crate::protocol::{ClientMessage, ServerMessage, PlayerAction};
 use crate::error::RouterError;
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 
 pub struct MessageRouter {
     lobby_manager: Arc<LobbyManager>,
@@ -106,6 +106,12 @@ impl MessageRouter {
         
         let msg = ServerMessage::LobbyCreated { lobby_id };
         self.connection_manager.send_to_player(player_id, msg).await;
+
+        // Broadcast updated lobby list to all players
+        let lobbies = self.lobby_manager.list_lobbies().await;
+        let list_msg = ServerMessage::LobbyList { lobbies };
+        let all_players = self.connection_manager.get_active_players().await;
+        self.connection_manager.broadcast_to_players(&all_players, list_msg).await;
         
         Ok(())
     }
@@ -134,8 +140,18 @@ impl MessageRouter {
                 settings: lobby.settings.clone(),
             };
             
-            let msg = ServerMessage::LobbyJoined { lobby: lobby_info };
+            let msg = ServerMessage::LobbyJoined { lobby: lobby_info.clone() };
             self.connection_manager.send_to_player(player_id, msg).await;
+
+            // Broadcast LobbyUpdated to all players
+            let update_msg = ServerMessage::LobbyUpdated { lobby: lobby_info };
+            self.connection_manager.broadcast_to_players(&lobby.players, update_msg).await;
+
+            // Broadcast updated lobby list to all players
+            let lobbies = self.lobby_manager.list_lobbies().await;
+            let list_msg = ServerMessage::LobbyList { lobbies };
+            let all_players = self.connection_manager.get_active_players().await;
+            self.connection_manager.broadcast_to_players(&all_players, list_msg).await;
         }
         
         Ok(())
@@ -159,6 +175,34 @@ impl MessageRouter {
             // Remove from mapping
             let mut player_to_lobby = self.player_to_lobby.write().await;
             player_to_lobby.remove(&player_id);
+            drop(player_to_lobby);
+
+            // Broadcast update to remaining players if lobby still exists
+            if let Some(lobby) = self.lobby_manager.get_lobby(lobby_id).await {
+                // ... (broadcast LobbyUpdated code) ...
+                let lobby_info = crate::protocol::LobbyInfo {
+                    id: lobby.id,
+                    host: lobby.host,
+                    players: lobby.players.clone(),
+                    max_players: lobby.max_players,
+                    settings: lobby.settings.clone(),
+                };
+                
+                let update_msg = ServerMessage::LobbyUpdated { lobby: lobby_info };
+                self.connection_manager.broadcast_to_players(&lobby.players, update_msg).await;
+                
+                // Also broadcast updated lobby list to everyone (so player count updates)
+                let lobbies = self.lobby_manager.list_lobbies().await;
+                let list_msg = ServerMessage::LobbyList { lobbies };
+                let all_players = self.connection_manager.get_active_players().await;
+                self.connection_manager.broadcast_to_players(&all_players, list_msg).await;
+            } else {
+                // Lobby was removed (empty), broadcast new list to everyone
+                let lobbies = self.lobby_manager.list_lobbies().await;
+                let list_msg = ServerMessage::LobbyList { lobbies };
+                let all_players = self.connection_manager.get_active_players().await;
+                self.connection_manager.broadcast_to_players(&all_players, list_msg).await;
+            }
         }
         
         Ok(())
@@ -181,10 +225,18 @@ impl MessageRouter {
             let players = if let Some(lobby) = self.lobby_manager.get_lobby(lobby_id).await {
                 lobby.players.clone()
             } else {
-                return Err(crate::error::LobbyError::LobbyNotFound.into());
+                warn!("Lobby {} found in mapping for player {} but not in manager", lobby_id, player_id);
+                return Err(crate::error::RouterError::from(format!("Internal Error: Lobby {} instance not found", lobby_id)));
             };
             
-            let game_id = self.lobby_manager.start_game(lobby_id, player_id).await?;
+            // Start the game
+            let game_id = match self.lobby_manager.start_game(lobby_id, player_id).await {
+                Ok(id) => id,
+                Err(e) => {
+                    warn!("Failed to start game from lobby {} by player {}: {}", lobby_id, player_id, e);
+                    return Err(e.into());
+                }
+            };
             
             // Update mappings: remove from lobby, add to game
             let mut player_to_lobby = self.player_to_lobby.write().await;
@@ -195,12 +247,12 @@ impl MessageRouter {
                 player_to_game.insert(*player, game_id);
             }
             
-            // GameStarting message is already sent by GameManager::create_game
             info!("Game {} started from lobby {}", game_id, lobby_id);
             Ok(())
         } else {
             // Player is not in any lobby
-            Err(crate::error::LobbyError::NotHost.into())
+            warn!("Player {} attempted to start game but is not in any lobby map", player_id);
+            Err(crate::error::RouterError::from("You are not in a lobby".to_string())) 
         }
     }
 

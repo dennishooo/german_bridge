@@ -40,7 +40,7 @@ pub enum GamePhase {
 impl GameState {
     /// Initialize a new game with players starting at round 1 with 1 card
     pub fn new(players: Vec<PlayerId>) -> Self {
-        let num_players = players.len();
+        // let num_players = players.len();
         let first_player = players[0];
         
         // Initialize empty collections
