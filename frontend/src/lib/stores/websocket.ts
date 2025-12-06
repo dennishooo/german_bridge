@@ -134,9 +134,12 @@ function createWebSocketStore() {
                 
                 // Lobby Messages
                 case 'LobbyCreated':
-                    // We expect to be joined automatically or for the UI to wait for LobbyJoined.
-                    // But usually the creator is auto-joined.
-                    // We'll wait for LobbyJoined to set the lobby state.
+                    // Refresh lobby list so others can see it immediately (and us if join fails)
+                    send('ListLobbies');
+                    // Auto-join the lobby we just created
+                    if (msg.payload.lobby_id) {
+                        send('JoinLobby', { lobby_id: msg.payload.lobby_id });
+                    }
                     break;
                 case 'LobbyJoined':
                     newState.lobby = msg.payload.lobby;
