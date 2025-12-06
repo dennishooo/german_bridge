@@ -8,12 +8,10 @@ pub struct BiddingState {
     pub highest_bid: Option<Bid>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum Bid {
-    Pass,
-    Game(u8),
-    Schneider,
-    Schwarz,
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Bid {
+    /// Number of tricks the player expects to win (0 to total cards dealt)
+    pub tricks: u8,
 }
 
 impl BiddingState {

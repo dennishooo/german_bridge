@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::time::Instant;
+use serde::{Deserialize, Serialize};
 use crate::connection::PlayerId;
 
 pub struct GameState {
@@ -8,6 +9,7 @@ pub struct GameState {
     pub turn_deadline: Option<Instant>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum GamePhase {
     Bidding,
     Playing,
