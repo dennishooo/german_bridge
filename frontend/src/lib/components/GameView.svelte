@@ -14,7 +14,7 @@
   // Compute valid actions
   $: validBids = $ws.validActions
       ?.filter(a => a.Bid !== undefined)
-      .map(a => a.Bid as number) ?? [];
+      .map(a => a.Bid!.tricks) ?? [];
       
   $: canPlayCard = $ws.validActions?.some(a => a.PlayCard);
 

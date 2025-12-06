@@ -432,4 +432,38 @@ impl GameState {
             your_turn,
         }
     }
+    /// Get valid actions for a specific player
+    pub fn get_valid_actions(&self, player_id: PlayerId) -> Vec<crate::protocol::PlayerAction> {
+        use crate::protocol::PlayerAction;
+        use crate::game_logic::bidding::Bid;
+        
+        let mut actions = Vec::new();
+        
+        // Only current player has valid actions
+        if self.current_player != player_id {
+            return actions;
+        }
+        
+        match self.phase {
+            GamePhase::Bidding => {
+                // Check all possible bids (0 to cards_per_player)
+                for tricks in 0..=self.cards_per_player {
+                    if self.validate_bid(player_id, tricks as u8).is_ok() {
+                        actions.push(PlayerAction::Bid(Bid { tricks: tricks as u8 }));
+                    }
+                }
+            }
+            GamePhase::Playing => {
+                if let Some(hand) = self.hands.get(&player_id) {
+                    let valid_cards = hand.valid_plays(self.current_trick.lead_suit);
+                    for card in valid_cards {
+                        actions.push(PlayerAction::PlayCard(card));
+                    }
+                }
+            }
+            _ => {}
+        }
+        
+        actions
+    }
 }

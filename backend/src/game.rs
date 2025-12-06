@@ -56,6 +56,10 @@ impl GameManager {
             created_at: Instant::now(),
         };
 
+        // Calculate valid actions for the first player *before* moving game into the map
+        let first_player = game.state.current_player;
+        let valid_actions = game.state.get_valid_actions(first_player);
+
         let mut games = self.games.write().await;
         games.insert(game_id, game);
         drop(games); // Release lock before broadcasting
@@ -65,6 +69,10 @@ impl GameManager {
         // Broadcast GameStarting message to all players
         let msg = ServerMessage::GameStarting { game_id };
         self.connection_manager.broadcast_to_players(&players, msg).await;
+
+        // Send valid actions to the first player
+        let turn_msg = ServerMessage::YourTurn { valid_actions };
+        self.connection_manager.send_to_player(first_player, turn_msg).await;
 
         game_id
     }
@@ -120,6 +128,7 @@ impl GameManager {
         game.state.validate_action(player_id, &action)?;
 
         // Store state before applying action to detect phase changes
+        let phase_before = game.state.phase;
         let trick_complete_before = game.state.current_trick.is_complete(game.players.len());
 
         // Apply the action to update state
@@ -130,6 +139,16 @@ impl GameManager {
         let players = game.players.clone();
         let game_id_copy = game_id;
         let phase_after = game.state.phase;
+
+        // Check if phase changed (e.g. Bidding -> Playing)
+        let mut phase_change_updates = Vec::new();
+        if phase_before != phase_after {
+            info!("Phase changed from {:?} to {:?} in game {}", phase_before, phase_after, game_id_copy);
+            for pid in &players {
+                let view = game.state.get_player_view(*pid, game_id_copy);
+                phase_change_updates.push((*pid, view));
+            }
+        }
 
         // Check if trick was just completed
         let trick_just_completed = !trick_complete_before && 
@@ -155,6 +174,11 @@ impl GameManager {
 
         debug!("Player {} performed action in game {}", player_id, game_id_copy);
 
+        // Broadcast phase change updates if any
+        for (pid, view) in phase_change_updates {
+             self.connection_manager.send_to_player(pid, ServerMessage::GameState { state: view }).await;
+        }
+
         // Broadcast PlayerAction message to all players
         let action_msg = ServerMessage::PlayerAction {
             player_id,
@@ -179,6 +203,21 @@ impl GameManager {
             };
             self.connection_manager.broadcast_to_players(&players, game_over_msg).await;
             info!("Game {} completed", game_id_copy);
+        } else {
+            // Game continues, notify next player
+            // We need to re-acquire the lock to read the *current* state (or trust our local logic)
+            // Actually, we dropped the lock on line 154. But we haven't modified the game since then.
+            // But we need the NEW current player. We didn't save it. 
+            // We need to re-read the game state or return it from apply_action? 
+            // Better: re-acquire read lock briefly.
+            
+            let games = self.games.read().await;
+            if let Some(game) = games.get(&game_id_copy) {
+                let next_player = game.state.current_player;
+                let valid_actions = game.state.get_valid_actions(next_player);
+                let turn_msg = ServerMessage::YourTurn { valid_actions };
+                self.connection_manager.send_to_player(next_player, turn_msg).await;
+            }
         }
 
         Ok(())

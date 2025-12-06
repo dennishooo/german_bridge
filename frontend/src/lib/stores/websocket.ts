@@ -39,7 +39,7 @@ export interface GameState {
 
 export interface ValidAction {
     PlayCard?: Card;
-    Bid?: number;
+    Bid?: { tricks: number };
 }
 
 // --- Store State ---
@@ -204,7 +204,7 @@ function createWebSocketStore() {
         },
         startGame: () => send('StartGame'),
         listLobbies: () => send('ListLobbies'),
-        placeBid: (bid: number) => send('PlaceBid', { bid }),
+        placeBid: (bid: number) => send('PlaceBid', { bid: { tricks: bid } }),
         playCard: (card: Card) => send('PlayCard', { card }),
         requestGameState: () => send('RequestGameState'),
         ping: () => send('Ping')
