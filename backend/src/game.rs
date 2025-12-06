@@ -169,43 +169,11 @@ impl GameManager {
             None
         };
 
-        // If RoundComplete, schedule next round
+        // If RoundComplete, don't auto-schedule. 
+        // We wait for StartNextRound message.
         if phase_after == crate::game_state::GamePhase::RoundComplete && phase_before != phase_after {
-            let games = Arc::clone(&self.games);
-            let connection_manager = Arc::clone(&self.connection_manager);
-            
-            tokio::spawn(async move {
-                // Wait for 5 seconds to let players see the scores
-                tokio::time::sleep(std::time::Duration::from_secs(5)).await;
-                
-                let mut games_write = games.write().await;
-                if let Some(game) = games_write.get_mut(&game_id_copy) {
-                    game.state.advance_to_next_round();
-                    
-                    // If round advanced cleanly, phase should now be Bidding
-                    if game.state.phase == crate::game_state::GamePhase::Bidding {
-                         // Broadcast new state (cards dealt, etc)
-                         // We need to send individual states due to hands
-                         for pid in &game.players {
-                            let view = game.state.get_player_view(*pid, game.id);
-                            connection_manager.send_to_player(*pid, ServerMessage::GameState { state: view }).await;
-                            
-                            // Also send valid actions to the first player
-                            if *pid == game.state.current_player {
-                                let valid_actions = game.state.get_valid_actions(*pid);
-                                let turn_msg = ServerMessage::YourTurn { valid_actions };
-                                connection_manager.send_to_player(*pid, turn_msg).await;
-                            }
-                         }
-                    } else if game.state.phase == crate::game_state::GamePhase::GameComplete {
-                         // Should have been handled above, but just in case
-                         let game_over_msg = ServerMessage::GameOver {
-                            final_scores: game.state.total_scores.clone(),
-                        };
-                        connection_manager.broadcast_to_players(&game.players, game_over_msg).await;
-                    }
-                }
-            });
+             // Just notify players of new state (history is already in view)
+             // The current_player has already been updated to the *next* starter in GameState::complete_trick
         }
 
         // Release the write lock before broadcasting
@@ -269,6 +237,55 @@ impl GameManager {
                 let turn_msg = ServerMessage::YourTurn { valid_actions };
                 self.connection_manager.send_to_player(next_player, turn_msg).await;
             }
+        }
+
+        Ok(())
+    }
+
+    /// Handle specific request to start the next round
+    pub async fn handle_start_next_round(
+        &self,
+        game_id: GameId,
+        player_id: PlayerId,
+    ) -> Result<(), GameError> {
+        let mut games = self.games.write().await;
+        let game = games.get_mut(&game_id)
+            .ok_or(GameError::GameNotFound)?;
+
+        // Validation
+        if game.state.phase != crate::game_state::GamePhase::RoundComplete {
+            return Err(GameError::InvalidMove("Not in RoundComplete phase".to_string()));
+        }
+        
+        if game.state.current_player != player_id {
+            return Err(GameError::NotPlayerTurn);
+        }
+
+        // Advance
+        game.state.advance_to_next_round();
+        
+        let players = game.players.clone();
+        
+        // Broadcast new state if round started
+        if game.state.phase == crate::game_state::GamePhase::Bidding {
+             info!("Round {} started in game {}", game.state.round_number, game_id);
+             
+             for pid in &players {
+                let view = game.state.get_player_view(*pid, game_id);
+                self.connection_manager.send_to_player(*pid, ServerMessage::GameState { state: view }).await;
+                
+                // Send valid actions to the first player
+                if *pid == game.state.current_player {
+                    let valid_actions = game.state.get_valid_actions(*pid);
+                    let turn_msg = ServerMessage::YourTurn { valid_actions };
+                    self.connection_manager.send_to_player(*pid, turn_msg).await;
+                }
+             }
+        } else if game.state.phase == crate::game_state::GamePhase::GameComplete {
+             let game_over_msg = ServerMessage::GameOver {
+                final_scores: game.state.total_scores.clone(),
+            };
+            self.connection_manager.broadcast_to_players(&players, game_over_msg).await;
         }
 
         Ok(())

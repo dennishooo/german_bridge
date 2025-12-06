@@ -4,13 +4,16 @@
   import Card from './Card.svelte';
   import BidControls from './BidControls.svelte';
   import Button from './Button.svelte';
+  import Scorecard from './Scorecard.svelte';
 
   $: game = $ws.game;
   $: myPlayerId = $ws.playerId;
   $: isMyTurn = game?.your_turn;
   $: phase = game?.phase;
   $: scores = game?.scores ?? {};
-  
+  $: history = game?.history ?? [];
+  $: players = Object.keys(scores);
+
   // Compute valid actions
   $: validBids = $ws.validActions
       ?.filter(a => a.Bid !== undefined)
@@ -139,16 +142,16 @@
     {#if phase === 'RoundComplete'}
         <div class="overlay">
             <div class="round-summary">
-                <h2>Round Complete!</h2>
-                <div class="summary-scores">
-                    {#each Object.entries(scores) as [pid, score]}
-                        <div class="summary-item">
-                            <span class="name">{getPlayerName(pid)}</span>
-                            <span class="score">{score}</span>
-                        </div>
-                    {/each}
+                <Scorecard {history} {players} myPlayerId={myPlayerId ?? ''} />
+                <div class="summary-footer">
+                    {#if game.current_player === myPlayerId}
+                        <Button variant="primary" on:click={() => ws.startNextRound()}>
+                            Start Round {game.round_number + 1}
+                        </Button>
+                    {:else}
+                        <p class="waiting-text">Waiting for {getPlayerName(game.current_player)} to start next round...</p>
+                    {/if}
                 </div>
-                <p>Starting next round...</p>
             </div>
         </div>
     {/if}
@@ -369,11 +372,31 @@
       background: var(--bg-secondary);
       padding: var(--spacing-xl);
       border-radius: var(--radius-lg);
-      text-align: center;
+      /* text-align: center;  Let Scorecard handle alignment */
       box-shadow: var(--shadow-xl);
       border: 1px solid var(--border-color);
       animation: slideIn 0.3s ease-out;
-      min-width: 300px;
+      /* Remove min-width to allow table to fit */
+      max-width: 95vw;
+    max-height: 90vh;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--spacing-lg);
+  }
+
+  .summary-footer {
+      width: 100%;
+      display: flex;
+      justify-content: center;
+      margin-top: var(--spacing-md);
+  }
+
+  .waiting-text {
+      color: var(--text-secondary);
+      font-style: italic;
+      animation: pulse 2s infinite;
   }
 
   @keyframes slideIn {

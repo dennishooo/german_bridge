@@ -57,6 +57,9 @@ impl MessageRouter {
             ClientMessage::ListLobbies => {
                 self.handle_list_lobbies(player_id).await
             }
+            ClientMessage::StartNextRound => {
+                self.handle_start_next_round(player_id).await
+            }
 
             // Game message handlers
             ClientMessage::PlaceBid { bid } => {
@@ -271,6 +274,24 @@ impl MessageRouter {
     }
 
     // Game message handlers
+
+    async fn handle_start_next_round(
+        &self,
+        player_id: PlayerId,
+    ) -> Result<(), RouterError> {
+        info!("Player {} starting next round", player_id);
+        
+        // Get the game ID from the mapping
+        let game_id = {
+            let player_to_game = self.player_to_game.read().await;
+            player_to_game.get(&player_id).copied()
+                .ok_or(crate::error::GameError::GameNotFound)?
+        };
+        
+        self.game_manager.handle_start_next_round(game_id, player_id).await?;
+        
+        Ok(())
+    }
 
     async fn handle_place_bid(
         &self,

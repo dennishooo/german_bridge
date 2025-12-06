@@ -27,6 +27,7 @@ pub struct GameState {
     pub turn_deadline: Option<Instant>,
     pub bidding_state: Option<BiddingState>,
     pub players: Vec<PlayerId>,
+    pub history: Vec<crate::protocol::RoundResult>, // Added history
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -69,11 +70,43 @@ impl GameState {
             turn_deadline: None,
             bidding_state: None,
             players,
+            history: Vec::new(), // Initialize history
         };
         
         // Start the first round
         state.start_round();
         state
+    }
+    
+    // ... (rest of the file until calculate_round_scores)
+
+    /// Calculate scores for the round using ScoreCalculator
+    fn calculate_round_scores(&mut self) {
+        use crate::game_logic::scoring::ScoreCalculator;
+        use crate::game_logic::bidding::Bid;
+        use crate::protocol::RoundResult;
+        
+        // Convert player_bids to HashMap<PlayerId, Bid>
+        let bids: HashMap<PlayerId, Bid> = self.player_bids.iter()
+            .map(|(player_id, tricks)| (*player_id, Bid { tricks: *tricks }))
+            .collect();
+        
+        // Calculate round scores
+        self.round_scores = ScoreCalculator::calculate_round_scores(&bids, &self.tricks_won);
+        
+        // Update total scores
+        for (player_id, round_score) in &self.round_scores {
+            *self.total_scores.entry(*player_id).or_insert(0) += round_score;
+        }
+
+        // Record round history
+        let result = RoundResult {
+            round_number: self.round_number,
+            bids: self.player_bids.clone(),
+            tricks_won: self.tricks_won.clone(),
+            scores: self.round_scores.clone(),
+        };
+        self.history.push(result);
     }
     
     /// Start a new round: deal cards, select random trump, reset round state
@@ -310,7 +343,15 @@ impl GameState {
             }
             
             // Note: We no longer auto-start the next round here.
-            // The GameManager will trigger advance_to_next_round after a delay.
+            // The GameManager will wait for StartNextRound message.
+            
+            // Set current player to the one who will start the next round
+            // This allows the frontend to show the "Start Next Round" button to the correct person
+            let current_index = self.players.iter()
+                .position(|p| *p == self.first_bidder)
+                .unwrap_or(0);
+            let next_index = (current_index + 1) % self.players.len();
+            self.current_player = self.players[next_index];
         }
         
         Ok(())
@@ -332,24 +373,7 @@ impl GameState {
         }
     }
     
-    /// Calculate scores for the round using ScoreCalculator
-    fn calculate_round_scores(&mut self) {
-        use crate::game_logic::scoring::ScoreCalculator;
-        use crate::game_logic::bidding::Bid;
-        
-        // Convert player_bids to HashMap<PlayerId, Bid>
-        let bids: HashMap<PlayerId, Bid> = self.player_bids.iter()
-            .map(|(player_id, tricks)| (*player_id, Bid { tricks: *tricks }))
-            .collect();
-        
-        // Calculate round scores
-        self.round_scores = ScoreCalculator::calculate_round_scores(&bids, &self.tricks_won);
-        
-        // Update total scores
-        for (player_id, round_score) in &self.round_scores {
-            *self.total_scores.entry(*player_id).or_insert(0) += round_score;
-        }
-    }
+
     
     /// Check if enough cards remain for the next round
     pub fn should_continue_game(&self) -> bool {
@@ -421,23 +445,25 @@ impl GameState {
             .unwrap_or_default();
         
         // Get current trick cards (visible to all)
-        let current_trick = self.current_trick.cards.clone();
+        let _current_trick = self.current_trick.cards.clone();
         
         // Get scores (use total scores)
-        let scores = self.total_scores.clone();
+        let _scores = self.total_scores.clone();
         
         // Check if it's this player's turn
-        let your_turn = self.current_player == player_id;
+        let _your_turn = self.current_player == player_id;
         
         PlayerGameView {
             game_id,
             phase: self.phase,
             your_hand,
-            current_trick,
-            scores,
+            current_trick: self.current_trick.cards.clone(),
+            scores: self.total_scores.clone(),
+            history: self.history.clone(),
+            round_number: self.round_number,
             trump_suit: self.trump_suit,
             current_player: self.current_player,
-            your_turn,
+            your_turn: self.current_player == player_id && self.phase != GamePhase::GameComplete,
         }
     }
     /// Get valid actions for a specific player

@@ -37,12 +37,22 @@ pub enum PlayerAction {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RoundResult {
+    pub round_number: usize,
+    pub bids: HashMap<PlayerId, u8>,
+    pub tricks_won: HashMap<PlayerId, u8>,
+    pub scores: HashMap<PlayerId, i32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PlayerGameView {
     pub game_id: GameId,
     pub phase: GamePhase,
     pub your_hand: Vec<Card>,
     pub current_trick: Vec<(PlayerId, Card)>,
     pub scores: HashMap<PlayerId, i32>,
+    pub history: Vec<RoundResult>, // Added history
+    pub round_number: usize,       // Added round_number
     pub trump_suit: Option<Suit>,
     pub current_player: PlayerId,
     pub your_turn: bool,
@@ -65,6 +75,7 @@ pub enum ClientMessage {
     JoinLobby { lobby_id: LobbyId },
     LeaveLobby,
     StartGame,
+    StartNextRound, // Added manual transition
     ListLobbies,
 
     // Game actions

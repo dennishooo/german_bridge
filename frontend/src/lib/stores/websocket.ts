@@ -2,6 +2,7 @@ import { writable, get } from 'svelte/store';
 
 // --- Types based on API.md ---
 
+export type PlayerId = string;
 export type Suit = "Clubs" | "Spades" | "Hearts" | "Diamonds";
 export type Rank = "Two" | "Three" | "Four" | "Five" | "Six" | "Seven" | "Eight" | "Nine" | "Ten" | "Jack" | "Queen" | "King" | "Ace";
 
@@ -30,11 +31,20 @@ export interface GameState {
     game_id: string;
     phase: GamePhase;
     your_hand: Card[];
-    current_trick: [string, Card][];
-    scores: Record<string, number>;
+    current_trick: [PlayerId, Card][];
+    scores: Record<PlayerId, number>;
+    history: RoundResult[];
+    round_number: number;
     trump_suit: Suit | null;
-    current_player: string;
+    current_player: PlayerId;
     your_turn: boolean;
+}
+
+export interface RoundResult {
+    round_number: number;
+    bids: Record<PlayerId, number>;
+    tricks_won: Record<PlayerId, number>;
+    scores: Record<PlayerId, number>;
 }
 
 export interface ValidAction {
@@ -243,6 +253,7 @@ function createWebSocketStore() {
             });
         },
         playCard: (card: Card) => send('PlayCard', { card }),
+        startNextRound: () => send('StartNextRound'),
         requestGameState: () => send('RequestGameState'),
         ping: () => send('Ping')
     };
