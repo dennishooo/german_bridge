@@ -29,7 +29,7 @@ impl ScoreCalculator {
             .map(|(player_id, bid)| {
                 let won = tricks_won.get(player_id).copied().unwrap_or(0);
                 let score = Self::calculate_player_score(bid.tricks, won);
-                (*player_id, score)
+                (player_id.clone(), score)
             })
             .collect()
     }

@@ -57,8 +57,8 @@ impl GameManager {
         };
 
         // Calculate valid actions for the first player *before* moving game into the map
-        let first_player = game.state.current_player;
-        let valid_actions = game.state.get_valid_actions(first_player);
+        let first_player = game.state.current_player.clone();
+        let valid_actions = game.state.get_valid_actions(first_player.clone());
 
         let mut games = self.games.write().await;
         games.insert(game_id, game);
@@ -72,7 +72,7 @@ impl GameManager {
 
         // Send valid actions to the first player
         let turn_msg = ServerMessage::YourTurn { valid_actions };
-        self.connection_manager.send_to_player(first_player, turn_msg).await;
+        self.connection_manager.send_to_player(first_player.clone(), turn_msg).await;
 
         game_id
     }
@@ -125,7 +125,7 @@ impl GameManager {
 
         // Validate the action before applying
         // Any validation errors are caught and returned without affecting game state
-        game.state.validate_action(player_id, &action)?;
+        game.state.validate_action(player_id.clone(), &action)?;
 
         // Store state before applying action to detect phase changes
         let phase_before = game.state.phase;
@@ -133,7 +133,7 @@ impl GameManager {
 
         // Apply the action to update state
         // If this fails, the game state remains unchanged
-        game.state.apply_action(player_id, action.clone())?;
+        game.state.apply_action(player_id.clone(), action.clone())?;
 
         // Get the list of players for broadcasting
         let players = game.players.clone();
@@ -145,8 +145,8 @@ impl GameManager {
         if phase_before != phase_after {
             info!("Phase changed from {:?} to {:?} in game {}", phase_before, phase_after, game_id_copy);
             for pid in &players {
-                let view = game.state.get_player_view(*pid, game_id_copy);
-                phase_change_updates.push((*pid, view));
+                let view = game.state.get_player_view(pid.clone(), game_id_copy);
+                phase_change_updates.push((pid.clone(), view));
             }
         }
 
@@ -158,7 +158,7 @@ impl GameManager {
 
         // Get trick winner and final scores if needed
         let trick_winner = if trick_just_completed && !game.state.completed_tricks.is_empty() {
-            Some(game.state.completed_tricks.last().unwrap().winner)
+            Some(game.state.completed_tricks.last().unwrap().winner.clone())
         } else {
             None
         };
@@ -183,7 +183,7 @@ impl GameManager {
 
         // Broadcast phase change updates if any
         for (pid, view) in phase_change_updates {
-             self.connection_manager.send_to_player(pid, ServerMessage::GameState { state: view }).await;
+             self.connection_manager.send_to_player(pid.clone(), ServerMessage::GameState { state: view }).await;
         }
 
         // Broadcast PlayerAction message to all players
@@ -191,15 +191,15 @@ impl GameManager {
         
         let games_read = self.games.read().await;
         let next_player = if let Some(g) = games_read.get(&game_id_copy) {
-            g.state.current_player
+            g.state.current_player.clone()
         } else {
             // Should not happen, but fallback
-            player_id 
+            player_id.clone() 
         };
         drop(games_read);
 
         let action_msg = ServerMessage::PlayerAction {
-            player_id,
+            player_id: player_id.clone(),
             action,
             next_player,
         };
@@ -208,7 +208,7 @@ impl GameManager {
         // Broadcast TrickComplete when trick finishes
         if let Some(winner) = trick_winner {
             let trick_msg = ServerMessage::TrickComplete {
-                winner,
+                winner: winner.clone(),
                 points: 0, // GBridge doesn't use points per trick
             };
             self.connection_manager.broadcast_to_players(&players, trick_msg).await;
@@ -232,10 +232,10 @@ impl GameManager {
             
             let games = self.games.read().await;
             if let Some(game) = games.get(&game_id_copy) {
-                let next_player = game.state.current_player;
-                let valid_actions = game.state.get_valid_actions(next_player);
+                let next_player = game.state.current_player.clone();
+                let valid_actions = game.state.get_valid_actions(next_player.clone());
                 let turn_msg = ServerMessage::YourTurn { valid_actions };
-                self.connection_manager.send_to_player(next_player, turn_msg).await;
+                self.connection_manager.send_to_player(next_player.clone(), turn_msg).await;
             }
         }
 
@@ -271,14 +271,14 @@ impl GameManager {
              info!("Round {} started in game {}", game.state.round_number, game_id);
              
              for pid in &players {
-                let view = game.state.get_player_view(*pid, game_id);
-                self.connection_manager.send_to_player(*pid, ServerMessage::GameState { state: view }).await;
+                let view = game.state.get_player_view(pid.clone(), game_id);
+                self.connection_manager.send_to_player(pid.clone(), ServerMessage::GameState { state: view }).await;
                 
                 // Send valid actions to the first player
                 if *pid == game.state.current_player {
-                    let valid_actions = game.state.get_valid_actions(*pid);
+                    let valid_actions = game.state.get_valid_actions(pid.clone());
                     let turn_msg = ServerMessage::YourTurn { valid_actions };
-                    self.connection_manager.send_to_player(*pid, turn_msg).await;
+                    self.connection_manager.send_to_player(pid.clone(), turn_msg).await;
                 }
              }
         } else if game.state.phase == crate::game_state::GamePhase::GameComplete {
@@ -301,7 +301,7 @@ impl GameManager {
             let mut games = self.games.write().await;
             if let Some(game) = games.get_mut(&game_id) {
                 game.state.set_turn_deadline(timeout_secs);
-                (game.state.current_player, game.state.turn_deadline)
+                (game.state.current_player.clone(), game.state.turn_deadline)
             } else {
                 return; // Game not found
             }
@@ -343,18 +343,18 @@ impl GameManager {
                 // Apply the auto action
                 let mut games_write = games.write().await;
                 if let Some(game) = games_write.get_mut(&game_id) {
-                    if let Err(e) = game.state.apply_action(current_player, action.clone()) {
+                    if let Err(e) = game.state.apply_action(current_player.clone(), action.clone()) {
                         warn!("Failed to apply auto action for player {} in game {}: {}", current_player, game_id, e);
                         return;
                     }
 
                     let players = game.players.clone();
-                    let next_player = game.state.current_player;
+                    let next_player = game.state.current_player.clone();
                     drop(games_write);
 
                     // Broadcast the auto action
                     let action_msg = ServerMessage::PlayerAction {
-                        player_id: current_player,
+                        player_id: current_player.clone(),
                         action,
                         next_player,
                     };

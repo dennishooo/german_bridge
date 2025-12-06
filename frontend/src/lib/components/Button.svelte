@@ -2,10 +2,14 @@
   export let variant: 'primary' | 'secondary' | 'outline' | 'ghost' = 'primary';
   export let size: 'sm' | 'md' | 'lg' = 'md';
   export let disabled = false;
+  export let type: 'button' | 'submit' | 'reset' = 'button';
+  export let fullWidth = false;
 </script>
 
 <button
   class="btn btn-{variant} btn-{size}"
+  class:full-width={fullWidth}
+  {type}
   {disabled}
   on:click
 >
@@ -83,5 +87,10 @@
   
   .btn-ghost:hover:not(:disabled) {
     background-color: var(--bg-tertiary);
+  }
+
+  .full-width {
+    width: 100%;
+    display: flex;
   }
 </style>

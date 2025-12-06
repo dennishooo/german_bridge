@@ -43,38 +43,38 @@ impl MessageRouter {
         let result = match message {
             // Lobby message handlers
             ClientMessage::CreateLobby { settings } => {
-                self.handle_create_lobby(player_id, settings).await
+                self.handle_create_lobby(player_id.clone(), settings).await
             }
             ClientMessage::JoinLobby { lobby_id } => {
-                self.handle_join_lobby(player_id, lobby_id).await
+                self.handle_join_lobby(player_id.clone(), lobby_id).await
             }
             ClientMessage::LeaveLobby => {
-                self.handle_leave_lobby(player_id).await
+                self.handle_leave_lobby(player_id.clone()).await
             }
             ClientMessage::StartGame => {
-                self.handle_start_game(player_id).await
+                self.handle_start_game(player_id.clone()).await
             }
             ClientMessage::ListLobbies => {
-                self.handle_list_lobbies(player_id).await
+                self.handle_list_lobbies(player_id.clone()).await
             }
             ClientMessage::StartNextRound => {
-                self.handle_start_next_round(player_id).await
+                self.handle_start_next_round(player_id.clone()).await
             }
 
             // Game message handlers
             ClientMessage::PlaceBid { bid } => {
-                self.handle_place_bid(player_id, bid).await
+                self.handle_place_bid(player_id.clone(), bid).await
             }
             ClientMessage::PlayCard { card } => {
-                self.handle_play_card(player_id, card).await
+                self.handle_play_card(player_id.clone(), card).await
             }
             ClientMessage::RequestGameState => {
-                self.handle_request_game_state(player_id).await
+                self.handle_request_game_state(player_id.clone()).await
             }
 
             // Connection message handlers
             ClientMessage::Ping => {
-                self.handle_ping(player_id).await
+                self.handle_ping(player_id.clone()).await
             }
         };
 
@@ -100,11 +100,11 @@ impl MessageRouter {
     ) -> Result<(), RouterError> {
         info!("Player {} creating lobby", player_id);
         
-        let lobby_id = self.lobby_manager.create_lobby(player_id, settings).await;
+        let lobby_id = self.lobby_manager.create_lobby(player_id.clone(), settings).await;
         
         // Track player-to-lobby mapping
         let mut player_to_lobby = self.player_to_lobby.write().await;
-        player_to_lobby.insert(player_id, lobby_id);
+        player_to_lobby.insert(player_id.clone(), lobby_id);
         drop(player_to_lobby);
         
         let msg = ServerMessage::LobbyCreated { lobby_id };
@@ -126,11 +126,11 @@ impl MessageRouter {
     ) -> Result<(), RouterError> {
         info!("Player {} joining lobby {}", player_id, lobby_id);
         
-        self.lobby_manager.join_lobby(lobby_id, player_id).await?;
+        self.lobby_manager.join_lobby(lobby_id, player_id.clone()).await?;
         
         // Track player-to-lobby mapping
         let mut player_to_lobby = self.player_to_lobby.write().await;
-        player_to_lobby.insert(player_id, lobby_id);
+        player_to_lobby.insert(player_id.clone(), lobby_id);
         drop(player_to_lobby);
         
         // Get lobby info to send back
@@ -169,11 +169,11 @@ impl MessageRouter {
         // Get the lobby ID from the mapping
         let lobby_id = {
             let player_to_lobby = self.player_to_lobby.read().await;
-            player_to_lobby.get(&player_id).copied()
+            player_to_lobby.get(&player_id).cloned()
         };
         
         if let Some(lobby_id) = lobby_id {
-            self.lobby_manager.leave_lobby(lobby_id, player_id).await?;
+            self.lobby_manager.leave_lobby(lobby_id, player_id.clone()).await?;
             
             // Remove from mapping
             let mut player_to_lobby = self.player_to_lobby.write().await;
@@ -220,7 +220,7 @@ impl MessageRouter {
         // Get the lobby ID from the mapping
         let lobby_id = {
             let player_to_lobby = self.player_to_lobby.read().await;
-            player_to_lobby.get(&player_id).copied()
+            player_to_lobby.get(&player_id).cloned()
         };
         
         if let Some(lobby_id) = lobby_id {
@@ -233,7 +233,7 @@ impl MessageRouter {
             };
             
             // Start the game
-            let game_id = match self.lobby_manager.start_game(lobby_id, player_id).await {
+            let game_id = match self.lobby_manager.start_game(lobby_id, player_id.clone()).await {
                 Ok(id) => id,
                 Err(e) => {
                     warn!("Failed to start game from lobby {} by player {}: {}", lobby_id, player_id, e);
@@ -247,7 +247,7 @@ impl MessageRouter {
             
             for player in &players {
                 player_to_lobby.remove(player);
-                player_to_game.insert(*player, game_id);
+                player_to_game.insert(player.clone(), game_id);
             }
             
             info!("Game {} started from lobby {}", game_id, lobby_id);
@@ -284,11 +284,11 @@ impl MessageRouter {
         // Get the game ID from the mapping
         let game_id = {
             let player_to_game = self.player_to_game.read().await;
-            player_to_game.get(&player_id).copied()
+            player_to_game.get(&player_id).cloned()
                 .ok_or(crate::error::GameError::GameNotFound)?
         };
         
-        self.game_manager.handle_start_next_round(game_id, player_id).await?;
+        self.game_manager.handle_start_next_round(game_id, player_id.clone()).await?;
         
         Ok(())
     }
@@ -303,12 +303,12 @@ impl MessageRouter {
         // Get the game ID from the mapping
         let game_id = {
             let player_to_game = self.player_to_game.read().await;
-            player_to_game.get(&player_id).copied()
+            player_to_game.get(&player_id).cloned()
                 .ok_or(crate::error::GameError::GameNotFound)?
         };
         
         let action = PlayerAction::Bid(bid);
-        self.game_manager.handle_player_action(game_id, player_id, action).await?;
+        self.game_manager.handle_player_action(game_id, player_id.clone(), action).await?;
         
         Ok(())
     }
@@ -323,12 +323,12 @@ impl MessageRouter {
         // Get the game ID from the mapping
         let game_id = {
             let player_to_game = self.player_to_game.read().await;
-            player_to_game.get(&player_id).copied()
+            player_to_game.get(&player_id).cloned()
                 .ok_or(crate::error::GameError::GameNotFound)?
         };
         
         let action = PlayerAction::PlayCard(card);
-        self.game_manager.handle_player_action(game_id, player_id, action).await?;
+        self.game_manager.handle_player_action(game_id, player_id.clone(), action).await?;
         
         Ok(())
     }
@@ -342,11 +342,11 @@ impl MessageRouter {
         // Get the game ID from the mapping
         let game_id = {
             let player_to_game = self.player_to_game.read().await;
-            player_to_game.get(&player_id).copied()
+            player_to_game.get(&player_id).cloned()
                 .ok_or(crate::error::GameError::GameNotFound)?
         };
         
-        let state = self.game_manager.get_game_state(game_id, player_id).await?;
+        let state = self.game_manager.get_game_state(game_id, player_id.clone()).await?;
         
         let msg = ServerMessage::GameState { state };
         self.connection_manager.send_to_player(player_id, msg).await;

@@ -5,11 +5,16 @@
   import LobbyView from '../lib/components/LobbyView.svelte';
   import GameView from '../lib/components/GameView.svelte';
   import ThemeToggle from '../lib/components/ThemeToggle.svelte';
+  import Auth from '../lib/components/Auth.svelte';
   import Button from '../lib/components/Button.svelte';
 
-  // Auto-connect on mount
+  // Auto-connect on mount if token exists
   onMount(async () => {
-    await ws.connect();
+    const token = localStorage.getItem("auth_token");
+    // Only auto-connect if we have a token, otherwise waiting for user to login
+    if (token) {
+        await ws.connect(token);
+    }
   });
 
   $: connected = $ws.connected;
@@ -44,10 +49,7 @@
     {/if}
 
     {#if !connected}
-       <div class="welcome">
-           <h2>Welcome to German Bridge</h2>
-           <p>Connecting to server...</p>
-       </div>
+       <Auth />
     {:else if game}
         <GameView />
     {:else if lobby}

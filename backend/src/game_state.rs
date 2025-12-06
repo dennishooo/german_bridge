@@ -42,14 +42,14 @@ impl GameState {
     /// Initialize a new game with players starting at round 1 with 1 card
     pub fn new(players: Vec<PlayerId>) -> Self {
         // let num_players = players.len();
-        let first_player = players[0];
+        let first_player = players[0].clone();
         
         // Initialize empty collections
         let mut total_scores = HashMap::new();
         let mut tricks_won = HashMap::new();
         for player in &players {
-            total_scores.insert(*player, 0);
-            tricks_won.insert(*player, 0);
+            total_scores.insert(player.clone(), 0);
+            tricks_won.insert(player.clone(), 0);
         }
         
         let mut state = Self {
@@ -65,8 +65,8 @@ impl GameState {
             trump_suit: None,
             player_bids: HashMap::new(),
             tricks_won,
-            current_player: first_player,
-            first_bidder: first_player,
+            current_player: first_player.clone(),
+            first_bidder: first_player.clone(),
             turn_deadline: None,
             bidding_state: None,
             players,
@@ -88,7 +88,7 @@ impl GameState {
         
         // Convert player_bids to HashMap<PlayerId, Bid>
         let bids: HashMap<PlayerId, Bid> = self.player_bids.iter()
-            .map(|(player_id, tricks)| (*player_id, Bid { tricks: *tricks }))
+            .map(|(player_id, tricks)| (player_id.clone(), Bid { tricks: *tricks }))
             .collect();
         
         // Calculate round scores
@@ -96,7 +96,7 @@ impl GameState {
         
         // Update total scores
         for (player_id, round_score) in &self.round_scores {
-            *self.total_scores.entry(*player_id).or_insert(0) += round_score;
+            *self.total_scores.entry(player_id.clone()).or_insert(0) += round_score;
         }
 
         // Record round history
@@ -140,7 +140,7 @@ impl GameState {
         let hands = self.deck.deal(num_players, self.cards_per_player);
         self.hands.clear();
         for (i, hand) in hands.into_iter().enumerate() {
-            self.hands.insert(self.players[i], hand);
+            self.hands.insert(self.players[i].clone(), hand);
         }
         
         // Reset round state
@@ -152,13 +152,13 @@ impl GameState {
         
         // Reset tricks won for this round
         for player in &self.players {
-            self.tricks_won.insert(*player, 0);
+            self.tricks_won.insert(player.clone(), 0);
         }
         
         // Set up bidding state
-        self.current_player = self.first_bidder;
+        self.current_player = self.first_bidder.clone();
         self.bidding_state = Some(BiddingState::new(
-            self.first_bidder,
+            self.first_bidder.clone(),
             self.players.clone(),
             self.cards_per_player,
         ));
@@ -195,7 +195,7 @@ impl GameState {
                 }
                 
                 // Validate the bid
-                self.validate_bid(player_id, bid.tricks)?;
+                self.validate_bid(player_id.clone(), bid.tricks)?;
             }
             PlayerAction::PlayCard(card) => {
                 // Must be in playing phase
@@ -253,28 +253,28 @@ impl GameState {
         use crate::protocol::PlayerAction;
         
         // Validate the action first
-        self.validate_action(player_id, &action)?;
+        self.validate_action(player_id.clone(), &action)?;
         
         match action {
             PlayerAction::Bid(bid) => {
                 // Record the bid
-                self.player_bids.insert(player_id, bid.tricks);
+                self.player_bids.insert(player_id.clone(), bid.tricks);
                 info!("Player {} bid {} tricks", player_id, bid.tricks);
                 
                 // Update bidding state
                 if let Some(ref mut bidding_state) = self.bidding_state {
-                    bidding_state.place_bid(player_id, bid.tricks)?;
+                    bidding_state.place_bid(player_id.clone(), bid.tricks)?;
                     
                     // Check if bidding is complete
                     if bidding_state.is_complete() {
                         // Transition to playing phase
                         self.phase = GamePhase::Playing;
-                        self.current_player = self.first_bidder;
+                        self.current_player = self.first_bidder.clone();
                         self.bidding_state = None;
                         info!("Bidding complete, transitioning to playing phase");
                     } else {
                         // Move to next bidder
-                        self.current_player = bidding_state.current_bidder;
+                        self.current_player = bidding_state.current_bidder.clone();
                         debug!("Next bidder: {}", self.current_player);
                     }
                 }
@@ -288,7 +288,7 @@ impl GameState {
                 debug!("Player {} played card: {:?}", player_id, card);
                 
                 // Add card to current trick
-                self.current_trick.add_card(player_id, card);
+                self.current_trick.add_card(player_id.clone(), card);
                 
                 // Check if trick is complete
                 if self.current_trick.is_complete(self.players.len()) {
@@ -312,13 +312,13 @@ impl GameState {
             ))?;
         
         // Update tricks won
-        *self.tricks_won.entry(winner).or_insert(0) += 1;
+        *self.tricks_won.entry(winner.clone()).or_insert(0) += 1;
         
         info!("Trick won by player {} (total tricks: {})", winner, self.tricks_won[&winner]);
         
         // Store completed trick
         let completed = CompletedTrick {
-            winner,
+            winner: winner.clone(),
             cards: self.current_trick.cards.clone(),
             points: 0, // GBridge doesn't use points per trick
         };
@@ -326,7 +326,7 @@ impl GameState {
         
         // Start new trick with winner leading
         self.current_trick = Trick::new();
-        self.current_player = winner;
+        self.current_player = winner.clone();
         
         // Check if round is complete (all cards played)
         let all_hands_empty = self.hands.values().all(|hand| hand.cards().is_empty());
@@ -351,7 +351,7 @@ impl GameState {
                 .position(|p| *p == self.first_bidder)
                 .unwrap_or(0);
             let next_index = (current_index + 1) % self.players.len();
-            self.current_player = self.players[next_index];
+            self.current_player = self.players[next_index].clone();
         }
         
         Ok(())
@@ -367,7 +367,7 @@ impl GameState {
                 .position(|p| *p == self.first_bidder)
                 .unwrap_or(0);
             let next_index = (current_index + 1) % self.players.len();
-            self.first_bidder = self.players[next_index];
+            self.first_bidder = self.players[next_index].clone();
             
             self.start_round();
         }
@@ -392,7 +392,7 @@ impl GameState {
             .unwrap_or(0);
         
         let next_index = (current_index + 1) % self.players.len();
-        self.current_player = self.players[next_index];
+        self.current_player = self.players[next_index].clone();
     }
     
     /// Set the turn deadline for the current player
@@ -462,7 +462,7 @@ impl GameState {
             history: self.history.clone(),
             round_number: self.round_number,
             trump_suit: self.trump_suit,
-            current_player: self.current_player,
+            current_player: self.current_player.clone(),
             your_turn: self.current_player == player_id && self.phase != GamePhase::GameComplete,
         }
     }
@@ -482,7 +482,7 @@ impl GameState {
             GamePhase::Bidding => {
                 // Check all possible bids (0 to cards_per_player)
                 for tricks in 0..=self.cards_per_player {
-                    if self.validate_bid(player_id, tricks as u8).is_ok() {
+                    if self.validate_bid(player_id.clone(), tricks as u8).is_ok() {
                         actions.push(PlayerAction::Bid(Bid { tricks: tricks as u8 }));
                     }
                 }

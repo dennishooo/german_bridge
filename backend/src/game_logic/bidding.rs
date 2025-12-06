@@ -20,7 +20,7 @@ impl BiddingState {
     pub fn new(starting_player: PlayerId, players: Vec<PlayerId>, cards: usize) -> Self {
         Self {
             bids: HashMap::new(),
-            current_bidder: starting_player,
+            current_bidder: starting_player.clone(),
             player_order: players,
             cards_this_round: cards,
         }
@@ -41,7 +41,7 @@ impl BiddingState {
         }
 
         // If this is the last bidder, check the restriction
-        if self.is_last_bidder(player_id) {
+        if self.is_last_bidder(player_id.clone()) {
             self.validate_last_bid(bid)?;
         }
 
@@ -83,11 +83,11 @@ impl BiddingState {
         let current_index = self
             .player_order
             .iter()
-            .position(|&p| p == self.current_bidder)
+            .position(|p| *p == self.current_bidder)
             .unwrap_or(0);
 
         let next_index = (current_index + 1) % self.player_order.len();
-        self.current_bidder = self.player_order[next_index];
+        self.current_bidder = self.player_order[next_index].clone();
     }
 }
 

@@ -55,8 +55,8 @@ impl LobbyManager {
 
         let lobby = Lobby {
             id: lobby_id,
-            host,
-            players: vec![host],
+            host: host.clone(),
+            players: vec![host.clone()],
             max_players,
             created_at: Instant::now(),
             settings,
@@ -84,7 +84,7 @@ impl LobbyManager {
 
         // Don't add if already in lobby
         if !lobby.players.contains(&player_id) {
-            lobby.players.push(player_id);
+            lobby.players.push(player_id.clone());
             info!("Player {} joined lobby {} ({}/{} players)", player_id, lobby_id, lobby.players.len(), lobby.max_players);
         } else {
             debug!("Player {} already in lobby {}", player_id, lobby_id);
@@ -101,7 +101,7 @@ impl LobbyManager {
             .ok_or(crate::error::LobbyError::LobbyNotFound)?;
 
         // Remove player from lobby
-        lobby.players.retain(|&p| p != player_id);
+        lobby.players.retain(|p| *p != player_id);
         info!("Player {} left lobby {}", player_id, lobby_id);
 
         // If lobby is empty, remove it
@@ -113,8 +113,8 @@ impl LobbyManager {
 
         // If the host left, transfer to next player
         if lobby.host == player_id {
-            let new_host = lobby.players[0];
-            lobby.host = new_host;
+            let new_host = lobby.players[0].clone();
+            lobby.host = new_host.clone();
             info!("Lobby {} host transferred from {} to {}", lobby_id, player_id, new_host);
         }
 
@@ -129,7 +129,7 @@ impl LobbyManager {
             .filter(|lobby| !lobby.is_full())
             .map(|lobby| crate::protocol::LobbyInfo {
                 id: lobby.id,
-                host: lobby.host,
+                host: lobby.host.clone(),
                 players: lobby.players.clone(),
                 max_players: lobby.max_players,
                 settings: lobby.settings.clone(),
@@ -155,7 +155,7 @@ impl LobbyManager {
                 .ok_or(crate::error::LobbyError::LobbyNotFound)?;
 
             // Verify caller is host
-            if !lobby.is_host(caller) {
+            if !lobby.is_host(caller.clone()) {
                 warn!("Player {} attempted to start game in lobby {} but is not host", caller, lobby_id);
                 return Err(crate::error::LobbyError::NotHost);
             }

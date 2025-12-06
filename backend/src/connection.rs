@@ -7,7 +7,7 @@ use axum::extract::ws::Message;
 use crate::protocol::ServerMessage;
 use tracing::{debug, warn, info};
 
-pub type PlayerId = Uuid;
+pub type PlayerId = String;
 
 const DEFAULT_RECONNECT_TIMEOUT_SECS: u64 = 60;
 
@@ -37,13 +37,19 @@ impl ConnectionManager {
         }
     }
 
-    /// Register a new player connection and return the assigned player ID
+    /// Register a new player connection with a random ID and return it
     pub async fn add_player(&self, ws_sender: mpsc::UnboundedSender<Message>) -> PlayerId {
-        let player_id = Uuid::new_v4();
+        let player_id = Uuid::new_v4().to_string();
+        self.register_player(player_id.clone(), ws_sender).await;
+        player_id
+    }
+
+    /// Register a player with a specific ID (used for auth)
+    pub async fn register_player(&self, player_id: PlayerId, ws_sender: mpsc::UnboundedSender<Message>) {
         let now = Instant::now();
         
         let session = PlayerSession {
-            id: player_id,
+            id: player_id.clone(),
             ws_sender,
             connected_at: now,
             last_activity: now,
@@ -52,11 +58,9 @@ impl ConnectionManager {
         };
         
         let mut sessions = self.sessions.write().await;
-        sessions.insert(player_id, session);
+        sessions.insert(player_id.clone(), session);
         
         debug!("Player {} connected", player_id);
-        
-        player_id
     }
 
     /// Remove a player connection
@@ -126,7 +130,7 @@ impl ConnectionManager {
             // Collect all other active players to notify
             for (id, s) in sessions.iter() {
                 if *id != player_id && s.is_active {
-                    other_players.push(*id);
+                    other_players.push(id.clone());
                 }
             }
         }
@@ -157,7 +161,7 @@ impl ConnectionManager {
             let mut other_players = Vec::new();
             for (id, s) in sessions.iter() {
                 if *id != player_id && s.is_active {
-                    other_players.push(*id);
+                    other_players.push(id.clone());
                 }
             }
             
@@ -186,7 +190,7 @@ impl ConnectionManager {
                 if let Some(disconnected_at) = session.disconnected_at {
                     if now.duration_since(disconnected_at) > self.reconnect_timeout {
                         info!("Removing expired session for player {}", player_id);
-                        expired_players.push(*player_id);
+                        expired_players.push(player_id.clone());
                         return false;
                     }
                 }
@@ -202,7 +206,7 @@ impl ConnectionManager {
         let sessions = self.sessions.read().await;
         sessions.iter()
             .filter(|(_, session)| session.is_active)
-            .map(|(id, _)| *id)
+            .map(|(id, _)| id.clone())
             .collect()
     }
 

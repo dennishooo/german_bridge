@@ -8,3 +8,5 @@ pub mod protocol;
 pub mod router;
 pub mod error;
 pub mod game_logic;
+pub mod auth;
+pub mod handlers;

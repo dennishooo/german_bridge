@@ -99,26 +99,43 @@ function createWebSocketStore() {
   let ws: WebSocket | null = null;
   let pingInterval: ReturnType<typeof setInterval>;
 
-  async function connect() {
-    if (ws) return;
-
+  async function getApiUrl(): Promise<string> {
     try {
-      // Try to get server IP from Tauri backend (if running in Tauri)
+      // Try to get server IP from Tauri backend
       let serverIp: string;
       try {
           serverIp = await invoke<string>("get_server_ip");
       } catch (e) {
-          // If invoke fails (e.g. browser), fallback to window.location.hostname
-          // If hostname is localhost, it might be dev mode, so we keep localhost
-          // If accessed via IP (e.g. 192.168.x.x), hostname will be that IP
           console.log("Tauri invoke failed, using browser location:", e);
           serverIp = window.location.hostname;
       }
-
-      // If serverIp is empty or localhost, defaults are fine.
-      // If we are on a remote device, window.location.hostname is the server IP.
+      
       const host = serverIp || 'localhost';
-      const url = `ws://${host}:8080/ws`;
+      return `http://${host}:8080`;
+    } catch (error) {
+       console.error("Failed to determine API URL:", error);
+       return 'http://localhost:8080';
+    }
+  }
+
+  async function connect(token?: string) {
+    if (ws) return;
+
+    try {
+      // Determine Host (similar logic as getApiUrl but for WS)
+      let serverIp: string;
+      try {
+          serverIp = await invoke<string>("get_server_ip");
+      } catch (e) {
+          serverIp = window.location.hostname;
+      }
+      const host = serverIp || 'localhost';
+      
+      // Append token if provided
+      let url = `ws://${host}:8080/ws`;
+      if (token) {
+          url += `?token=${encodeURIComponent(token)}`;
+      }
       
       console.log("Connecting to:", url);
       ws = new WebSocket(url);
@@ -126,7 +143,7 @@ function createWebSocketStore() {
       console.error("Failed to determine connection URL:", error);
       return;
     }
-
+    
     ws.onopen = () => {
       console.log("Connected to WebSocket");
       // Start pinging to keep connection alive
@@ -303,5 +320,6 @@ function createWebSocketStore() {
     startNextRound: () => send("StartNextRound"),
     requestGameState: () => send("RequestGameState"),
     ping: () => send("Ping"),
+    getApiUrl,
   };
 }

@@ -32,11 +32,12 @@ impl Trick {
         }
 
         let lead_suit = self.lead_suit?;
-        let (mut winner_id, mut winning_card) = self.cards[0];
+        let (ref winner_id, mut winning_card) = self.cards[0];
+        let mut winner_id = winner_id.clone();
 
-        for &(player_id, card) in &self.cards[1..] {
+        for &(ref player_id, card) in &self.cards[1..] {
             if card.beats(&winning_card, trump, lead_suit) {
-                winner_id = player_id;
+                winner_id = player_id.clone();
                 winning_card = card;
             }
         }

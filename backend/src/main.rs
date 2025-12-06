@@ -37,6 +37,29 @@ async fn main() {
     }));
 
     tracing::info!("German Bridge Backend starting...");
+
+    // Initialize Database
+    let database_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite:users.db".to_string());
+    tracing::info!("Connecting to database at {}", database_url);
+
+    // Create database file if it doesn't exist (sqlite only)
+    if !std::path::Path::new("users.db").exists() {
+        std::fs::File::create("users.db").expect("Failed to create database file");
+    }
+
+    let db_pool = sqlx::sqlite::SqlitePoolOptions::new()
+        .max_connections(5)
+        .connect(&database_url)
+        .await
+        .expect("Failed to connect to database");
+
+    // Run migrations
+    sqlx::migrate!("./migrations")
+        .run(&db_pool)
+        .await
+        .expect("Failed to run migrations");
+    
+    tracing::info!("Database migrations applied");
     
     // Initialize ConnectionManager with Arc
     let connection_manager = Arc::new(connection::ConnectionManager::new());
@@ -59,7 +82,7 @@ async fn main() {
     tracing::info!("MessageRouter initialized");
     
     // Start the server
-    if let Err(e) = server::run_server(config, connection_manager, game_manager, message_router).await {
+    if let Err(e) = server::run_server(config, connection_manager, game_manager, message_router, db_pool).await {
         tracing::error!("Server error: {}", e);
         std::process::exit(1);
     }
