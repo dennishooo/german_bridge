@@ -7,6 +7,7 @@ use crate::game_logic::deck::{Deck, Hand};
 use crate::game_logic::trick::{Trick, CompletedTrick};
 use crate::game_logic::bidding::BiddingState;
 use rand::seq::SliceRandom;
+use tracing::{debug, info, warn};
 
 pub struct GameState {
     pub phase: GamePhase,
@@ -98,6 +99,9 @@ impl GameState {
         } else {
             self.cards_per_player = self.round_number;
         }
+        
+        info!("Starting round {} with {} cards per player, trump: {:?}", 
+              self.round_number, self.cards_per_player, self.trump_suit);
         
         // Deal the cards
         let hands = self.deck.deal(num_players);
@@ -222,6 +226,7 @@ impl GameState {
             PlayerAction::Bid(bid) => {
                 // Record the bid
                 self.player_bids.insert(player_id, bid.tricks);
+                info!("Player {} bid {} tricks", player_id, bid.tricks);
                 
                 // Update bidding state
                 if let Some(ref mut bidding_state) = self.bidding_state {
@@ -233,9 +238,11 @@ impl GameState {
                         self.phase = GamePhase::Playing;
                         self.current_player = self.first_bidder;
                         self.bidding_state = None;
+                        info!("Bidding complete, transitioning to playing phase");
                     } else {
                         // Move to next bidder
                         self.current_player = bidding_state.current_bidder;
+                        debug!("Next bidder: {}", self.current_player);
                     }
                 }
             }
@@ -244,6 +251,8 @@ impl GameState {
                 if let Some(hand) = self.hands.get_mut(&player_id) {
                     hand.play_card(card)?;
                 }
+                
+                debug!("Player {} played card: {:?}", player_id, card);
                 
                 // Add card to current trick
                 self.current_trick.add_card(player_id, card);
@@ -272,6 +281,8 @@ impl GameState {
         // Update tricks won
         *self.tricks_won.entry(winner).or_insert(0) += 1;
         
+        info!("Trick won by player {} (total tricks: {})", winner, self.tricks_won[&winner]);
+        
         // Store completed trick
         let completed = CompletedTrick {
             winner,
@@ -290,6 +301,8 @@ impl GameState {
             self.calculate_round_scores();
             self.phase = GamePhase::RoundComplete;
             
+            info!("Round {} complete. Scores: {:?}", self.round_number, self.round_scores);
+            
             // Check if game should continue
             if self.should_continue_game() {
                 // Advance to next round
@@ -304,6 +317,7 @@ impl GameState {
                 self.start_round();
             } else {
                 self.phase = GamePhase::GameComplete;
+                info!("Game complete! Final scores: {:?}", self.total_scores);
             }
         }
         
@@ -371,6 +385,7 @@ impl GameState {
         match self.phase {
             GamePhase::Bidding => {
                 // Auto-bid 0 (safest bid)
+                warn!("Auto-bidding 0 for player {} due to timeout", self.current_player);
                 Some(PlayerAction::Bid(Bid { tricks: 0 }))
             }
             GamePhase::Playing => {
@@ -378,6 +393,7 @@ impl GameState {
                 if let Some(hand) = self.hands.get(&self.current_player) {
                     let valid_plays = hand.valid_plays(self.current_trick.lead_suit);
                     if let Some(&card) = valid_plays.first() {
+                        warn!("Auto-playing card {:?} for player {} due to timeout", card, self.current_player);
                         return Some(PlayerAction::PlayCard(card));
                     }
                 }

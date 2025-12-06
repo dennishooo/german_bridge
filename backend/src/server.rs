@@ -1,9 +1,10 @@
 use crate::error::ServerError;
 use crate::connection::{ConnectionManager, PlayerId};
 use crate::protocol::{ClientMessage, ServerMessage};
+use crate::game::GameManager;
 use axum::{
     extract::{ws::{WebSocket, WebSocketUpgrade, Message}, State, Query},
-    response::IntoResponse,
+    response::{IntoResponse, Json},
     routing::get,
     Router,
 };
@@ -22,6 +23,11 @@ pub struct ServerConfig {
     pub log_level: String,
 }
 
+pub struct AppState {
+    pub connection_manager: Arc<ConnectionManager>,
+    pub game_manager: Arc<GameManager>,
+}
+
 pub async fn run_server(config: ServerConfig) -> Result<(), ServerError> {
     let addr = format!("{}:{}", config.host, config.port);
     
@@ -31,12 +37,19 @@ pub async fn run_server(config: ServerConfig) -> Result<(), ServerError> {
     
     // Create shared state
     let connection_manager = Arc::new(ConnectionManager::new());
+    let game_manager = Arc::new(GameManager::new(Arc::clone(&connection_manager)));
+    
+    let app_state = Arc::new(AppState {
+        connection_manager,
+        game_manager,
+    });
     
     // Build the Axum router with shared state
     let app = Router::new()
         .route("/ws", get(ws_handler))
         .route("/health", get(health_check))
-        .with_state(connection_manager);
+        .route("/stats", get(stats_handler))
+        .with_state(app_state);
     
     // Create TCP listener
     let listener = tokio::net::TcpListener::bind(&addr)
@@ -57,13 +70,14 @@ pub async fn run_server(config: ServerConfig) -> Result<(), ServerError> {
 
 async fn ws_handler(
     ws: WebSocketUpgrade,
-    State(connection_manager): State<Arc<ConnectionManager>>,
+    State(app_state): State<Arc<AppState>>,
     Query(params): Query<HashMap<String, String>>,
 ) -> impl IntoResponse {
     // Check if this is a reconnection attempt
     let reconnect_player_id = params.get("player_id")
         .and_then(|id| id.parse::<PlayerId>().ok());
     
+    let connection_manager = Arc::clone(&app_state.connection_manager);
     ws.on_upgrade(move |socket| handle_socket(socket, connection_manager, reconnect_player_id))
 }
 
@@ -274,6 +288,24 @@ async fn handle_message(
 
 async fn health_check() -> impl IntoResponse {
     "OK"
+}
+
+async fn stats_handler(State(app_state): State<Arc<AppState>>) -> impl IntoResponse {
+    let connection_stats = app_state.connection_manager.get_stats().await;
+    let game_stats = app_state.game_manager.get_stats().await;
+    
+    let stats = ServerStats {
+        connections: connection_stats,
+        games: game_stats,
+    };
+    
+    Json(stats)
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+struct ServerStats {
+    connections: crate::connection::ConnectionStats,
+    games: crate::game::GameStats,
 }
 
 async fn shutdown_signal() {

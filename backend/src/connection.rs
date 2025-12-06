@@ -205,4 +205,27 @@ impl ConnectionManager {
             .map(|(id, _)| *id)
             .collect()
     }
+
+    /// Get connection statistics
+    pub async fn get_stats(&self) -> ConnectionStats {
+        let sessions = self.sessions.read().await;
+        let total_connections = sessions.len();
+        let active_connections = sessions.iter()
+            .filter(|(_, session)| session.is_active)
+            .count();
+        let inactive_connections = total_connections - active_connections;
+
+        ConnectionStats {
+            total_connections,
+            active_connections,
+            inactive_connections,
+        }
+    }
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ConnectionStats {
+    pub total_connections: usize,
+    pub active_connections: usize,
+    pub inactive_connections: usize,
 }

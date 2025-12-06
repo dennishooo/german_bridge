@@ -267,6 +267,21 @@ impl GameManager {
             debug!("Cancelled turn timer for game {}", game_id);
         }
     }
+
+    /// Get game statistics
+    pub async fn get_stats(&self) -> GameStats {
+        let games = self.games.read().await;
+        let active_games = games.len();
+
+        GameStats {
+            active_games,
+        }
+    }
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct GameStats {
+    pub active_games: usize,
 }
 
 // Make Game cloneable for the helper method

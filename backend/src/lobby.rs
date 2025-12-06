@@ -6,6 +6,7 @@ use uuid::Uuid;
 use crate::connection::PlayerId;
 use crate::protocol::GameSettings;
 use crate::game::{GameManager, GameId};
+use tracing::{debug, info, warn};
 
 pub type LobbyId = Uuid;
 
@@ -64,6 +65,8 @@ impl LobbyManager {
         let mut lobbies = self.lobbies.write().await;
         lobbies.insert(lobby_id, lobby);
 
+        info!("Lobby {} created by player {} with max {} players", lobby_id, host, max_players);
+
         lobby_id
     }
 
@@ -75,12 +78,16 @@ impl LobbyManager {
             .ok_or(crate::error::LobbyError::LobbyNotFound)?;
 
         if lobby.is_full() {
+            warn!("Player {} attempted to join full lobby {}", player_id, lobby_id);
             return Err(crate::error::LobbyError::LobbyFull);
         }
 
         // Don't add if already in lobby
         if !lobby.players.contains(&player_id) {
             lobby.players.push(player_id);
+            info!("Player {} joined lobby {} ({}/{} players)", player_id, lobby_id, lobby.players.len(), lobby.max_players);
+        } else {
+            debug!("Player {} already in lobby {}", player_id, lobby_id);
         }
 
         Ok(())
@@ -95,16 +102,20 @@ impl LobbyManager {
 
         // Remove player from lobby
         lobby.players.retain(|&p| p != player_id);
+        info!("Player {} left lobby {}", player_id, lobby_id);
 
         // If lobby is empty, remove it
         if lobby.players.is_empty() {
             lobbies.remove(&lobby_id);
+            info!("Lobby {} removed (empty)", lobby_id);
             return Ok(());
         }
 
         // If the host left, transfer to next player
         if lobby.host == player_id {
-            lobby.host = lobby.players[0];
+            let new_host = lobby.players[0];
+            lobby.host = new_host;
+            info!("Lobby {} host transferred from {} to {}", lobby_id, player_id, new_host);
         }
 
         Ok(())
@@ -114,7 +125,7 @@ impl LobbyManager {
     pub async fn list_lobbies(&self) -> Vec<crate::protocol::LobbyInfo> {
         let lobbies = self.lobbies.read().await;
         
-        lobbies.values()
+        let joinable_lobbies: Vec<_> = lobbies.values()
             .filter(|lobby| !lobby.is_full())
             .map(|lobby| crate::protocol::LobbyInfo {
                 id: lobby.id,
@@ -123,7 +134,10 @@ impl LobbyManager {
                 max_players: lobby.max_players,
                 settings: lobby.settings.clone(),
             })
-            .collect()
+            .collect();
+        
+        debug!("Listing {} joinable lobbies", joinable_lobbies.len());
+        joinable_lobbies
     }
 
     /// Get a lobby by ID (helper method)
@@ -142,16 +156,20 @@ impl LobbyManager {
 
             // Verify caller is host
             if !lobby.is_host(caller) {
+                warn!("Player {} attempted to start game in lobby {} but is not host", caller, lobby_id);
                 return Err(crate::error::LobbyError::NotHost);
             }
 
             // Validate player count (2+ players)
             if lobby.players.len() < 2 {
+                warn!("Lobby {} cannot start game with only {} players", lobby_id, lobby.players.len());
                 return Err(crate::error::LobbyError::NotEnoughPlayers);
             }
 
             lobby.players.clone()
         };
+
+        info!("Starting game from lobby {} with {} players", lobby_id, players.len());
 
         // Create the game
         let game_id = self.game_manager.create_game(players).await;
@@ -159,6 +177,7 @@ impl LobbyManager {
         // Remove the lobby after game starts
         let mut lobbies = self.lobbies.write().await;
         lobbies.remove(&lobby_id);
+        info!("Lobby {} removed after game {} started", lobby_id, game_id);
 
         Ok(game_id)
     }
