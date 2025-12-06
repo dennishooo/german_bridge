@@ -168,13 +168,38 @@ function createWebSocketStore() {
                     if (newState.game) newState.game.your_turn = true;
                     break;
                 case 'PlayerAction':
-                    if (msg.payload.player_id === newState.playerId) {
-                         newState.validActions = null;
-                         if (newState.game) newState.game.your_turn = false;
+                    const { player_id, action } = msg.payload;
+                    if (newState.game) {
+                        // Handle PlayCard
+                        if (action.PlayCard) {
+                            const card = action.PlayCard;
+                            
+                            // Check if the current trick is full (based on lobby settings or default 4)
+                            // If full, we assume this new card starts a new trick, so we clear the old one.
+                            // We use >= max_players to be safe.
+                            const maxPlayers = newState.lobby?.max_players || 4;
+                            if (newState.game.current_trick.length >= maxPlayers) {
+                                newState.game.current_trick = [];
+                            }
+
+                            // Add to current trick
+                            newState.game.current_trick = [...newState.game.current_trick, [player_id, card]];
+                            
+                            // If it's me, remove from hand
+                            if (player_id === newState.playerId) {
+                                newState.game.your_hand = newState.game.your_hand.filter(
+                                    c => c.suit !== card.suit || c.rank !== card.rank
+                                );
+                                newState.validActions = null;
+                                newState.game.your_turn = false;
+                            }
+                        }
                     }
                     break;
                 case 'TrickComplete':
-                    // We could show a toast here
+                    // We don't clear the trick here anymore.
+                    // We leave it visible until the next card is played (see PlayerAction above)
+                    // or until the round ends (GameState update).
                     break;
                 case 'GameOver':
                     // Final scores are in payload
