@@ -6,6 +6,34 @@
   export let validActions: any[] | null = null;
   export let onPlayCard: (card: CardType) => void;
 
+  // Suit order (from left to right)
+  const suitOrder = { Clubs: 0, Diamonds: 1, Hearts: 2, Spades: 3 };
+  
+  // Rank order (from lowest to highest)
+  const rankOrder = {
+    Two: 0,
+    Three: 1,
+    Four: 2,
+    Five: 3,
+    Six: 4,
+    Seven: 5,
+    Eight: 6,
+    Nine: 7,
+    Ten: 8,
+    Jack: 9,
+    Queen: 10,
+    King: 11,
+    Ace: 12,
+  };
+
+  function sortCards(cards: CardType[]): CardType[] {
+    return [...cards].sort((a, b) => {
+      const suitDiff = suitOrder[a.suit as keyof typeof suitOrder] - suitOrder[b.suit as keyof typeof suitOrder];
+      if (suitDiff !== 0) return suitDiff;
+      return rankOrder[a.rank as keyof typeof rankOrder] - rankOrder[b.rank as keyof typeof rankOrder];
+    });
+  }
+
   function isCardValid(card: CardType): boolean {
     if (!validActions) return false;
     return validActions.some(action => 
@@ -20,11 +48,13 @@
       onPlayCard(card);
     }
   }
+
+  $: sortedHand = sortCards(hand);
 </script>
 
 <div class="hand">
   <div class="cards">
-    {#each hand as card}
+    {#each sortedHand as card}
       <!-- svelte-ignore a11y-click-events-have-key-events -->
       <!-- svelte-ignore a11y-no-static-element-interactions -->
       <div 
