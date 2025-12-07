@@ -478,6 +478,7 @@ impl GameState {
             trump_suit: self.trump_suit,
             current_player: self.current_player.clone(),
             your_turn: self.current_player == player_id && self.phase != GamePhase::GameComplete,
+            current_round: self.current_round.clone(),
         }
     }
     /// Get valid actions for a specific player

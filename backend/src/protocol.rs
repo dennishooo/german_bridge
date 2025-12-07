@@ -56,6 +56,7 @@ pub struct PlayerGameView {
     pub trump_suit: Option<Suit>,
     pub current_player: PlayerId,
     pub your_turn: bool,
+    pub current_round: Vec<PlayerRoundResult>, // Current round bids and makes
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

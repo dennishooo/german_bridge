@@ -32,6 +32,7 @@ export type GamePhase =
   | "GameComplete";
 
 export interface LobbySettings {
+  player_count: number;
   turn_timeout_secs: number;
   allow_reconnect: boolean;
 }
@@ -60,13 +61,19 @@ export interface GameState {
   trump_suit: Suit | null;
   current_player: PlayerId;
   your_turn: boolean;
+  current_round: PlayerRoundResult[];
 }
 
 export interface RoundResult {
   round_number: number;
-  bids: Record<PlayerId, number>;
-  tricks_won: Record<PlayerId, number>;
-  scores: Record<PlayerId, number>;
+  player_results: PlayerRoundResult[];
+}
+
+export interface PlayerRoundResult {
+  player_id: PlayerId;
+  bid: number;
+  tricks_won: number;
+  score: number;
 }
 
 export interface ValidAction {
@@ -262,9 +269,27 @@ function createWebSocketStore() {
           send("RequestGameState");
           break;
         case "GameState":
+          // Reset current round tracking when starting a NEW round (round number changed)
+          const previousRound = newState.game?.round_number;
           newState.game = msg.payload.state;
-          // Reset current round tracking when game state is updated (new round)
-          if (newState.game?.phase === "Bidding") {
+
+          // Populate currentRoundBids and currentRoundMakes from current_round
+          if (newState.game?.current_round) {
+            const bids: Record<string, number> = {};
+            const makes: Record<string, number> = {};
+            for (const result of newState.game.current_round) {
+              if (result.bid > 0) {
+                bids[result.player_id] = result.bid;
+              }
+              makes[result.player_id] = result.tricks_won;
+            }
+            newState.currentRoundBids = bids;
+            newState.currentRoundMakes = makes;
+          } else if (
+            newState.game?.phase === "Bidding" &&
+            newState.game.round_number !== previousRound
+          ) {
+            // Only reset if starting a new round and no current_round data
             newState.currentRoundBids = {};
             newState.currentRoundMakes = {};
           }
@@ -306,12 +331,13 @@ function createWebSocketStore() {
                 newState.game.your_turn = false;
               }
             }
-            // Handle Bid
-            if (action.Bid) {
-              newState.currentRoundBids = {
+            // Handle Bid - ensure reactivity by creating new object
+            if (action.Bid !== undefined) {
+              const updatedBids = {
                 ...newState.currentRoundBids,
                 [player_id]: action.Bid.tricks,
               };
+              newState.currentRoundBids = updatedBids;
             }
           }
           break;

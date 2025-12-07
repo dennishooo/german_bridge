@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onDestroy } from 'svelte';
   import { ws, type Card as CardType } from '../stores/websocket';
   import Hand from './Hand.svelte';
   import Card from './Card.svelte';
@@ -7,6 +8,8 @@
   import Scorecard from './Scorecard.svelte';
 
   let showHistoryModal = false;
+  let showRoundSummary = false;
+  let roundSummaryTimeout: ReturnType<typeof setTimeout> | null = null;
 
   $: game = $ws.game;
   $: myPlayerId = $ws.playerId;
@@ -15,6 +18,33 @@
   $: scores = game?.scores ?? {};
   $: history = game?.history ?? [];
   $: players = Object.keys(scores);
+
+  // Handle round completion with delay to show final card
+  // Only show summary if game exists and phase is RoundComplete
+  $: if (game && phase === 'RoundComplete') {
+    // Clear any existing timeout
+    if (roundSummaryTimeout) {
+      clearTimeout(roundSummaryTimeout);
+    }
+    // Show summary after a delay (2 seconds) so users can see the final card
+    roundSummaryTimeout = setTimeout(() => {
+      showRoundSummary = true;
+    }, 2000);
+  } else {
+    // Hide summary immediately when phase changes away from RoundComplete or game is null
+    showRoundSummary = false;
+    if (roundSummaryTimeout) {
+      clearTimeout(roundSummaryTimeout);
+      roundSummaryTimeout = null;
+    }
+  }
+
+  // Cleanup timeout on component destroy
+  onDestroy(() => {
+    if (roundSummaryTimeout) {
+      clearTimeout(roundSummaryTimeout);
+    }
+  });
 
   // Compute valid actions
   $: validBids = $ws.validActions
@@ -69,10 +99,17 @@
     const bid = $ws.currentRoundBids[pid];
     const make = $ws.currentRoundMakes[pid];
     return { 
-      bid: bid !== undefined ? bid : '-', 
-      make: make !== undefined ? make : '-',
+      bid: bid !== undefined ? bid : null, 
+      make: make !== undefined ? make : 0,
       hasBid: bid !== undefined 
     };
+  }
+
+  function getBidMakeStatus(bid: number | null, make: number) {
+    if (bid === null) return 'pending';
+    if (make < bid) return 'under';
+    if (make === bid) return 'exact';
+    return 'over';
   }
 </script>
 
@@ -83,9 +120,14 @@
             {#each Object.entries(scores) as [pid, score]}
                 {#key pid}
                   {@const bidMake = getPlayerBidMake(pid)}
+                  {@const status = getBidMakeStatus(bidMake.bid, bidMake.make)}
                   <div class="score-badge" class:active={game.current_player === pid}>
                       <span class="name">{getPlayerName(pid)}</span>
-                      <span class="bid-make">B:{bidMake.bid} M:{bidMake.make}</span>
+                      <div class="bid-make-display" class:pending={status === 'pending'} class:exact={status === 'exact'} class:over={status === 'over'} class:under={status === 'under'}>
+                          <span class="make-value">{bidMake.make}</span>
+                          <span class="separator">/</span>
+                          <span class="bid-value">{bidMake.bid ?? '-'}</span>
+                      </div>
                       <span class="score">{score}</span>
                   </div>
                 {/key}
@@ -118,14 +160,6 @@
                     <span class="value">{game.trump_suit ?? 'None'}</span>
                 </div>
             </div>
-            <div class="info-item">
-                <span class="label">Your Bid</span>
-                <span class="value">{userBid}</span>
-            </div>
-            <div class="info-item">
-                <span class="label">Your Make</span>
-                <span class="value">{userMake}</span>
-            </div>
             <Button size="sm" variant="secondary" on:click={() => (showHistoryModal = true)}>
                 📊 History
             </Button>
@@ -133,36 +167,20 @@
     </div>
 
     <div class="board">
-        {#if phase === 'Bidding'}
-            <!-- Bidding Display -->
-            <div class="bidding-display">
-                <h3>Current Bids</h3>
-                <div class="bids-grid">
-                    {#each players as pid}
-                        {@const bidMake = getPlayerBidMake(pid)}
-                        <div class="bid-card" class:your-bid={pid === myPlayerId} class:awaiting={!bidMake.hasBid}>
-                            <div class="bid-name">{getPlayerName(pid)}</div>
-                            <div class="bid-value">{bidMake.bid}</div>
-                            <div class="bid-label">tricks</div>
-                        </div>
-                    {/each}
-                </div>
-            </div>
-        {:else}
             <!-- Trick Area -->
-            <div class="trick-area">
-                 {#if game.current_trick.length === 0}
-                    <div class="empty-trick">Waiting for play...</div>
-                 {:else}
-                    {#each game.current_trick as [pid, card], i}
-                        <div class="played-card" style="--rotation: {i * 20 - (game.current_trick.length-1)*10}deg">
-                            <span class="player-label">{getPlayerName(pid)}</span>
-                            <Card rank={card.rank} suit={card.suit} />
-                        </div>
-                    {/each}
-                 {/if}
-            </div>
-        {/if}
+        <div class="trick-area">
+             {#if game.current_trick.length === 0}
+                <div class="empty-trick">Waiting for play...</div>
+             {:else}
+                {#each game.current_trick as [pid, card], i}
+                    <div class="played-card" style="--rotation: {i * 20 - (game.current_trick.length-1)*10}deg">
+                        <span class="player-label">{getPlayerName(pid)}</span>
+                        <Card rank={card.rank} suit={card.suit} />
+                    </div>
+                {/each}
+             {/if}
+        </div>
+        <!-- {/if} -->
         
         <div class="status-message">
             {#if isMyTurn}
@@ -201,7 +219,7 @@
         </div>
     {/if}
     
-    {#if phase === 'RoundComplete'}
+    {#if game && phase === 'RoundComplete' && showRoundSummary}
         <div class="overlay">
             <div class="round-summary">
                 <Scorecard {history} {players} myPlayerId={myPlayerId ?? ''} playerUsernames={$ws.playerUsernames} />
@@ -266,11 +284,42 @@
       color: var(--text-secondary);
   }
 
-  .score-badge .bid-make {
-      font-size: 0.7rem;
-      color: var(--text-tertiary);
+  .bid-make-display {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 1.5rem;
+      font-weight: bold;
       font-family: monospace;
-      margin: 2px 0;
+      margin: 4px 0;
+      padding: 4px 8px;
+      border-radius: var(--radius-sm);
+      transition: all 0.3s;
+  }
+
+  .bid-make-display.pending {
+      color: var(--text-primary);
+      background: rgba(255, 255, 255, 0.1);
+  }
+
+  .bid-make-display.under {
+      color: var(--text-primary);
+      background: rgba(255, 255, 255, 0.1);
+  }
+
+  .bid-make-display.exact {
+      color: #10b981;
+      background: rgba(16, 185, 129, 0.15);
+  }
+
+  .bid-make-display.over {
+      color: #ef4444;
+      background: rgba(239, 68, 68, 0.15);
+  }
+
+  .bid-make-display .separator {
+      opacity: 0.5;
+      font-size: 1.2rem;
   }
   
   .score-badge .score {

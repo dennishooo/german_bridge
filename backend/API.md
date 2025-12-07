@@ -15,6 +15,7 @@ Before connecting to the WebSocket, you must first authenticate via HTTP to rece
 **Endpoint:** `POST /api/register`
 
 **Request:**
+
 ```json
 {
   "username": "player1",
@@ -23,6 +24,7 @@ Before connecting to the WebSocket, you must first authenticate via HTTP to rece
 ```
 
 **Response:**
+
 ```json
 {
   "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
@@ -36,6 +38,7 @@ Before connecting to the WebSocket, you must first authenticate via HTTP to rece
 **Endpoint:** `POST /api/login`
 
 **Request:**
+
 ```json
 {
   "username": "player1",
@@ -44,6 +47,7 @@ Before connecting to the WebSocket, you must first authenticate via HTTP to rece
 ```
 
 **Response:**
+
 ```json
 {
   "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
@@ -590,8 +594,7 @@ Broadcast when a trick is completed.
 {
   "type": "TrickComplete",
   "payload": {
-    "winner": "660e8400-e29b-41d4-a716-446655440001",
-    "points": 14
+    "winner": "660e8400-e29b-41d4-a716-446655440001"
   }
 }
 ```
@@ -723,7 +726,7 @@ Server → All: PlayerAction { player_id: "p1", action: PlayCard(...) }
 
 # ... more plays ...
 
-Server → All: TrickComplete { winner: "p1", points: 14 }
+Server → All: TrickComplete { winner: "p1" }
 Server → Player1: YourTurn { valid_actions: [...] }
 
 # ... more tricks ...
