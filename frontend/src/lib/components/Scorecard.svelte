@@ -2,11 +2,16 @@
   import type { PlayerId } from '../stores/websocket';
 
   // Defines the shape of a single round's result
+  interface PlayerRoundResult {
+    player_id: PlayerId;
+    bid: number;
+    tricks_won: number;
+    score: number;
+  }
+  
   interface RoundResult {
       round_number: number;
-      bids: Record<string, number>;
-      tricks_won: Record<string, number>;
-      scores: Record<string, number>;
+      player_results: PlayerRoundResult[];
   }
 
   export let history: RoundResult[] = [];
@@ -19,17 +24,22 @@
       // Use the provided username mapping, fallback to abbreviated ID
       return playerUsernames[id] || `P${id.slice(0, 4)}`;
   }
+
+  // Get player result data for a specific round and player
+  function getPlayerRoundData(round: RoundResult, pid: PlayerId) {
+    const playerResult = round.player_results.find(pr => pr.player_id === pid);
+    return playerResult || { player_id: pid, bid: 0, tricks_won: 0, score: 0 };
+  }
   
   // Calculate totals for the footer
   $: totals = players.reduce((acc, pid) => {
       acc[pid] = history.reduce((playerTotals, round) => {
-          const bid = round.bids[pid] || 0;
-          const made = round.tricks_won[pid] || 0;
+          const data = getPlayerRoundData(round, pid);
           
-          playerTotals.bids += bid;
-          playerTotals.made += made;
-          playerTotals.diff += (bid - made);
-          playerTotals.score += (round.scores[pid] || 0);
+          playerTotals.bids += data.bid;
+          playerTotals.made += data.tricks_won;
+          playerTotals.diff += (data.bid - data.tricks_won);
+          playerTotals.score += data.score;
           return playerTotals;
       }, { bids: 0, made: 0, diff: 0, score: 0 });
       return acc;
@@ -61,15 +71,16 @@
                   <tr>
                       <td class="round-num sticky-col">{round.round_number}</td>
                       {#each players as pid}
-                          <td class="val">{round.bids[pid] ?? '-'}</td>
-                          <td class="val" class:made={round.tricks_won[pid] === round.bids[pid]} class:missed={round.tricks_won[pid] !== round.bids[pid]}>
-                              {round.tricks_won[pid] ?? 0}
+                          {@const data = getPlayerRoundData(round, pid)}
+                          <td class="val">{data.bid ?? '-'}</td>
+                          <td class="val" class:made={data.tricks_won === data.bid} class:missed={data.tricks_won !== data.bid}>
+                              {data.tricks_won ?? 0}
                           </td>
                           <td class="val diff-val">
-                              {(round.bids[pid] ?? 0) - (round.tricks_won[pid] ?? 0)}
+                              {(data.bid ?? 0) - (data.tricks_won ?? 0)}
                           </td>
-                          <td class="val score" class:positive={round.scores[pid] > 0} class:negative={round.scores[pid] < 0}>
-                              {round.scores[pid] ?? 0}
+                          <td class="val score" class:positive={data.score > 0} class:negative={data.score < 0}>
+                              {data.score ?? 0}
                           </td>
                       {/each}
                   </tr>

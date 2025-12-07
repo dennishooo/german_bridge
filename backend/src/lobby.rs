@@ -54,10 +54,7 @@ impl LobbyManager {
     /// Create a new lobby with the given host and settings
     pub async fn create_lobby(&self, host: PlayerId, settings: GameSettings) -> LobbyId {
         let lobby_id = Uuid::new_v4();
-        let max_players = match settings.player_count {
-            crate::protocol::PlayerCount::Three => 3,
-            crate::protocol::PlayerCount::Four => 4,
-        };
+        let max_players = settings.player_count;
 
         let lobby = Lobby {
             id: lobby_id,

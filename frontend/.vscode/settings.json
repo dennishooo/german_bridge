@@ -1,3 +1,12 @@
 {
-  "svelte.enable-ts-plugin": true
+  "svelte.enable-ts-plugin": true,
+  "sqltools.useNodeRuntime": true,
+  "sqltools.connections": [
+    {
+      "previewLimit": 50,
+      "driver": "SQLite",
+      "database": "/Users/dennisho/Desktop/german-bridge/backend/users.db",
+      "name": "german-bridge"
+    }
+  ]
 }

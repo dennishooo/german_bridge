@@ -7,15 +7,9 @@ use crate::game_logic::card::{Card, Suit};
 use crate::game_logic::bidding::Bid;
 use crate::game_state::GamePhase;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum PlayerCount {
-    Three,
-    Four,
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GameSettings {
-    pub player_count: PlayerCount,
+    pub player_count: usize,
     pub turn_timeout_secs: u64,
     pub allow_reconnect: bool,
 }
@@ -23,7 +17,7 @@ pub struct GameSettings {
 impl Default for GameSettings {
     fn default() -> Self {
         Self {
-            player_count: PlayerCount::Four,
+            player_count: 4,
             turn_timeout_secs: 30,
             allow_reconnect: true,
         }
@@ -45,9 +39,9 @@ pub struct RoundResult {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PlayerRoundResult {
     pub player_id: PlayerId,
-    pub bids: u8,
+    pub bid: u8,
     pub tricks_won: u8,
-    pub scores: i32,
+    pub score: i32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

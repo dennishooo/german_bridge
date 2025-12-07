@@ -66,9 +66,13 @@
   $: userMake = $ws.currentRoundMakes[myPlayerId ?? ''] ?? '-';
 
   function getPlayerBidMake(pid: string) {
-    const bid = $ws.currentRoundBids[pid] ?? '-';
-    const make = $ws.currentRoundMakes[pid] ?? '-';
-    return { bid, make };
+    const bid = $ws.currentRoundBids[pid];
+    const make = $ws.currentRoundMakes[pid];
+    return { 
+      bid: bid !== undefined ? bid : '-', 
+      make: make !== undefined ? make : '-',
+      hasBid: bid !== undefined 
+    };
   }
 </script>
 
@@ -136,7 +140,7 @@
                 <div class="bids-grid">
                     {#each players as pid}
                         {@const bidMake = getPlayerBidMake(pid)}
-                        <div class="bid-card" class:your-bid={pid === myPlayerId} class:awaiting={bidMake.bid === '-'}>
+                        <div class="bid-card" class:your-bid={pid === myPlayerId} class:awaiting={!bidMake.hasBid}>
                             <div class="bid-name">{getPlayerName(pid)}</div>
                             <div class="bid-value">{bidMake.bid}</div>
                             <div class="bid-label">tricks</div>

@@ -44,17 +44,15 @@ impl GameState {
         
         // Initialize empty collections
         let mut total_scores = HashMap::new();
-        let mut tricks_won = HashMap::new();
         for player in &players {
             total_scores.insert(player.clone(), 0);
-            tricks_won.insert(player.clone(), 0);
         }
         let current_round = players.iter().map(|pid| {
             crate::protocol::PlayerRoundResult {
                 player_id: pid.clone(),
-                bids: 0,
+                bid: 0,
                 tricks_won: 0,
-                scores: 0,
+                score: 0,
             }
         }).collect();
         
@@ -92,7 +90,7 @@ impl GameState {
         
         // Convert player_bids to HashMap<PlayerId, Bid>
         let bids: HashMap<PlayerId, Bid> = self.current_round.iter()
-            .map(|pr| (pr.player_id.clone(), Bid { tricks: pr.bids }))
+            .map(|pr| (pr.player_id.clone(), Bid { tricks: pr.bid }))
             .collect();
         
         let tricks_won: HashMap<PlayerId, u8> = self.current_round.iter()
@@ -105,7 +103,7 @@ impl GameState {
         // Update current_round with calculated scores and total scores
         for pr in self.current_round.iter_mut() {
             if let Some(&score) = round_scores.get(&pr.player_id) {
-                pr.scores = score;
+                pr.score = score;
                 *self.total_scores.entry(pr.player_id.clone()).or_insert(0) += score;
             }
         }
@@ -162,9 +160,9 @@ impl GameState {
         self.current_round = self.players.iter().map(|pid| {
             crate::protocol::PlayerRoundResult {
                 player_id: pid.clone(),
-                bids: 0,
+                bid: 0,
                 tricks_won: 0,
-                scores: 0,
+                score: 0,
             }
         }).collect();
 
@@ -273,7 +271,7 @@ impl GameState {
                 // Record the bid in current_round
                 if let Some(pr) = self.current_round.iter_mut()
                     .find(|pr| pr.player_id == player_id) {
-                    pr.bids = bid.tricks;
+                    pr.bid = bid.tricks;
                 }                
                 info!("Player {} bid {} tricks", player_id, bid.tricks);
                 
@@ -352,7 +350,7 @@ impl GameState {
             self.calculate_round_scores();
             self.phase = GamePhase::RoundComplete;
             
-            info!("Round {} complete. Scores: {:?}", self.round_number, self.current_round.iter().map(|pr| (&pr.player_id, pr.scores)).collect::<HashMap<_, _>>());
+            info!("Round {} complete. Scores: {:?}", self.round_number, self.current_round.iter().map(|pr| (&pr.player_id, pr.score)).collect::<HashMap<_, _>>());
             
             // Check if game should continue
             if !self.should_continue_game() {
