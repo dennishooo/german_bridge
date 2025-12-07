@@ -28,10 +28,28 @@
         body: JSON.stringify({ username, password }),
       });
 
-      const data = await response.json();
+      let data: any;
+      try {
+        // Try to parse as JSON first
+        const text = await response.text();
+        if (text) {
+          try {
+            data = JSON.parse(text);
+          } catch {
+            // If not valid JSON, use the text as the error message
+            data = text;
+          }
+        }
+      } catch (e) {
+        // If reading response fails, use default error
+        data = "Authentication failed";
+      }
 
       if (!response.ok) {
-        throw new Error(data || "Authentication failed");
+        const errorMessage = typeof data === "string" 
+          ? data 
+          : (data?.message || data?.error || JSON.stringify(data) || "Authentication failed");
+        throw new Error(errorMessage);
       }
 
       // Success

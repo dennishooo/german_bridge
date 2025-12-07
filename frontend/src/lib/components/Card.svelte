@@ -7,13 +7,13 @@
 
   const dispatch = createEventDispatcher();
 
-  // Map API suit names to symbols if needed
+  // Map API suit names to symbols
   function getSuitSymbol(s: string) {
       switch(s) {
-          case "Hearts": return "♥️";
-          case "Diamonds": return "♦️";
-          case "Clubs": return "♣️";
-          case "Spades": return "♠️";
+          case "Hearts": return "♥";
+          case "Diamonds": return "♦";
+          case "Clubs": return "♣";
+          case "Spades": return "♠";
           default: return s;
       }
   }
@@ -39,7 +39,7 @@
 
   $: displaySuit = getSuitSymbol(suit);
   $: displayRank = getRankShort(rank);
-  $: red = displaySuit === "♥️" || displaySuit === "♦️";
+  $: isRed = suit === "Hearts" || suit === "Diamonds";
 
   function handleClick() {
     if (playable) {
@@ -51,21 +51,21 @@
 <!-- svelte-ignore a11y-click-events-have-key-events -->
 <div 
   class="card" 
-  class:red 
+  class:red={isRed}
   class:playable 
   class:selected
   on:click={handleClick}
   role="button"
   tabindex="0"
 >
-  <div class="top-left">
+  <div class="corner corner-top">
     <div class="rank">{displayRank}</div>
     <div class="suit">{displaySuit}</div>
   </div>
   
   <div class="center-suit">{displaySuit}</div>
   
-  <div class="bottom-right">
+  <div class="corner corner-bottom">
     <div class="rank">{displayRank}</div>
     <div class="suit">{displaySuit}</div>
   </div>
@@ -74,41 +74,58 @@
 <style>
   .card {
     width: 100px;
-    height: 150px;
-    background: white;
-    border-radius: 8px;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    height: 140px;
+    aspect-ratio: 5 / 7;
+    background: #ffffff;
+    border-radius: var(--radius-lg);
+    box-shadow: 
+      0 1px 3px rgba(0, 0, 0, 0.08),
+      0 2px 6px rgba(0, 0, 0, 0.04);
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    padding: 10px;
-    font-family: serif;
+    padding: 10px 8px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
     position: relative;
     user-select: none;
-    transition: transform 0.2s, box-shadow 0.2s;
-    color: black; /* Force black default */
-    border: 1px solid #ccc;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    color: #1a1a1a;
+    border: 1px solid var(--border-color);
+    cursor: default;
   }
   
   .card.red {
-    color: #e53935;
+    color: var(--color-error);
   }
   
-  .top-left {
+  .corner {
     display: flex;
     flex-direction: column;
-    align-items: center;
-    font-size: 1.2rem;
-    line-height: 1;
+    align-items: flex-start;
+    font-weight: 600;
+    line-height: 1.1;
+    z-index: 1;
   }
-  
-  .bottom-right {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    font-size: 1.2rem;
-    line-height: 1;
+
+  .corner-top {
+    align-self: flex-start;
+  }
+
+  .corner-bottom {
+    align-self: flex-end;
     transform: rotate(180deg);
+  }
+  
+  .rank {
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+  
+  .suit {
+    font-size: 18px;
+    line-height: 1;
+    margin-top: -2px;
   }
   
   .center-suit {
@@ -116,18 +133,33 @@
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    font-size: 2.5rem;
+    font-size: 48px;
+    font-weight: 300;
+    color: currentColor;
+  }
+
+  .card.playable {
+    cursor: pointer;
   }
 
   .card.playable:hover {
-      cursor: pointer;
-      transform: translateY(-20px);
-      box-shadow: 0 5px 15px rgba(0,0,0,0.3);
-      z-index: 10;
+    transform: translateY(-8px) scale(1.05);
+    box-shadow: 
+      0 4px 12px rgba(0, 0, 0, 0.12),
+      0 8px 24px rgba(0, 0, 0, 0.08);
+    z-index: 10;
   }
 
   .card.selected {
-      transform: translateY(-30px);
-      box-shadow: 0 0 0 3px var(--accent, #0ea5e9);
+    transform: translateY(-12px) scale(1.08);
+    box-shadow: 
+      0 0 0 2px var(--accent),
+      0 4px 12px rgba(0, 0, 0, 0.12),
+      0 8px 24px rgba(0, 0, 0, 0.08);
+    z-index: 10;
+  }
+
+  .card.playable:active {
+    transform: translateY(-6px) scale(1.03);
   }
 </style>
