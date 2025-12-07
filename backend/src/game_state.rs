@@ -17,11 +17,9 @@ pub struct GameState {
     pub hands: HashMap<PlayerId, Hand>,
     pub current_trick: Trick,
     pub completed_tricks: Vec<CompletedTrick>,
-    pub round_scores: HashMap<PlayerId, i32>,
     pub total_scores: HashMap<PlayerId, i32>,
     pub trump_suit: Option<Suit>,
-    pub player_bids: HashMap<PlayerId, u8>,
-    pub tricks_won: HashMap<PlayerId, u8>,
+    pub current_round: Vec<crate::protocol::PlayerRoundResult>,
     pub current_player: PlayerId,
     pub first_bidder: PlayerId,
     pub turn_deadline: Option<Instant>,
@@ -51,6 +49,14 @@ impl GameState {
             total_scores.insert(player.clone(), 0);
             tricks_won.insert(player.clone(), 0);
         }
+        let current_round = players.iter().map(|pid| {
+            crate::protocol::PlayerRoundResult {
+                player_id: pid.clone(),
+                bids: 0,
+                tricks_won: 0,
+                scores: 0,
+            }
+        }).collect();
         
         let mut state = Self {
             phase: GamePhase::Bidding,
@@ -60,11 +66,9 @@ impl GameState {
             hands: HashMap::new(),
             current_trick: Trick::new(),
             completed_tricks: Vec::new(),
-            round_scores: HashMap::new(),
             total_scores,
             trump_suit: None,
-            player_bids: HashMap::new(),
-            tricks_won,
+            current_round,
             current_player: first_player.clone(),
             first_bidder: first_player.clone(),
             turn_deadline: None,
@@ -87,24 +91,30 @@ impl GameState {
         use crate::protocol::RoundResult;
         
         // Convert player_bids to HashMap<PlayerId, Bid>
-        let bids: HashMap<PlayerId, Bid> = self.player_bids.iter()
-            .map(|(player_id, tricks)| (player_id.clone(), Bid { tricks: *tricks }))
+        let bids: HashMap<PlayerId, Bid> = self.current_round.iter()
+            .map(|pr| (pr.player_id.clone(), Bid { tricks: pr.bids }))
             .collect();
         
+        let tricks_won: HashMap<PlayerId, u8> = self.current_round.iter()
+            .map(|pr| (pr.player_id.clone(), pr.tricks_won))
+            .collect();
+
         // Calculate round scores
-        self.round_scores = ScoreCalculator::calculate_round_scores(&bids, &self.tricks_won);
+        let round_scores = ScoreCalculator::calculate_round_scores(&bids, &tricks_won);
         
-        // Update total scores
-        for (player_id, round_score) in &self.round_scores {
-            *self.total_scores.entry(player_id.clone()).or_insert(0) += round_score;
+        // Update current_round with calculated scores and total scores
+        for pr in self.current_round.iter_mut() {
+            if let Some(&score) = round_scores.get(&pr.player_id) {
+                pr.scores = score;
+                *self.total_scores.entry(pr.player_id.clone()).or_insert(0) += score;
+            }
         }
+
 
         // Record round history
         let result = RoundResult {
             round_number: self.round_number,
-            bids: self.player_bids.clone(),
-            tricks_won: self.tricks_won.clone(),
-            scores: self.round_scores.clone(),
+            player_results: self.current_round.clone(),
         };
         self.history.push(result);
     }
@@ -147,14 +157,17 @@ impl GameState {
         self.phase = GamePhase::Bidding;
         self.current_trick = Trick::new();
         self.completed_tricks.clear();
-        self.round_scores.clear();
-        self.player_bids.clear();
-        
-        // Reset tricks won for this round
-        for player in &self.players {
-            self.tricks_won.insert(player.clone(), 0);
-        }
-        
+
+        // Reset current_round for new round
+        self.current_round = self.players.iter().map(|pid| {
+            crate::protocol::PlayerRoundResult {
+                player_id: pid.clone(),
+                bids: 0,
+                tricks_won: 0,
+                scores: 0,
+            }
+        }).collect();
+
         // Set up bidding state
         self.current_player = self.first_bidder.clone();
         self.bidding_state = Some(BiddingState::new(
@@ -257,8 +270,11 @@ impl GameState {
         
         match action {
             PlayerAction::Bid(bid) => {
-                // Record the bid
-                self.player_bids.insert(player_id.clone(), bid.tricks);
+                // Record the bid in current_round
+                if let Some(pr) = self.current_round.iter_mut()
+                    .find(|pr| pr.player_id == player_id) {
+                    pr.bids = bid.tricks;
+                }                
                 info!("Player {} bid {} tricks", player_id, bid.tricks);
                 
                 // Update bidding state
@@ -311,16 +327,18 @@ impl GameState {
                 "Cannot determine trick winner".to_string()
             ))?;
         
-        // Update tricks won
-        *self.tricks_won.entry(winner.clone()).or_insert(0) += 1;
+        // Update tricks won in current_round
+        if let Some(pr) = self.current_round.iter_mut()
+            .find(|pr| pr.player_id == winner) {
+            pr.tricks_won += 1;
+        }
         
-        info!("Trick won by player {} (total tricks: {})", winner, self.tricks_won[&winner]);
+        info!("Trick won by player {}", winner);
         
         // Store completed trick
         let completed = CompletedTrick {
             winner: winner.clone(),
             cards: self.current_trick.cards.clone(),
-            points: 0, // GBridge doesn't use points per trick
         };
         self.completed_tricks.push(completed);
         
@@ -334,7 +352,7 @@ impl GameState {
             self.calculate_round_scores();
             self.phase = GamePhase::RoundComplete;
             
-            info!("Round {} complete. Scores: {:?}", self.round_number, self.round_scores);
+            info!("Round {} complete. Scores: {:?}", self.round_number, self.current_round.iter().map(|pr| (&pr.player_id, pr.scores)).collect::<HashMap<_, _>>());
             
             // Check if game should continue
             if !self.should_continue_game() {
@@ -342,9 +360,7 @@ impl GameState {
                 info!("Game complete! Final scores: {:?}", self.total_scores);
             }
             
-            // Note: We no longer auto-start the next round here.
             // The GameManager will wait for StartNextRound message.
-            
             // Set current player to the one who will start the next round
             // This allows the frontend to show the "Start Next Round" button to the correct person
             let current_index = self.players.iter()

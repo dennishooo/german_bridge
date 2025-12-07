@@ -49,7 +49,6 @@ impl Trick {
 pub struct CompletedTrick {
     pub winner: PlayerId,
     pub cards: Vec<(PlayerId, Card)>,
-    pub points: u8,
 }
 
 #[cfg(test)]

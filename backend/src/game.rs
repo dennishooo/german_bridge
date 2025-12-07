@@ -217,10 +217,8 @@ impl GameManager {
         let round_data = if phase_after == crate::game_state::GamePhase::RoundComplete && phase_before != phase_after {
             // Collect round data before dropping lock
             let round_number = game.state.round_number;
-            let bids = game.state.player_bids.clone();
-            let tricks_won = game.state.tricks_won.clone();
-            let round_scores = game.state.round_scores.clone();
-            Some((round_number, bids, tricks_won, round_scores))
+            let player_results = game.state.current_round.clone();
+            Some((round_number, player_results))
         } else {
             None
         };
@@ -236,14 +234,12 @@ impl GameManager {
         }
         
         // Persist round data to DB if round just completed
-        if let Some((round_number, bids, tricks_won, round_scores)) = round_data {
+        if let Some((round_number, player_results)) = round_data {
             let round_model = crate::entities::game_round::ActiveModel {
                 id: sea_orm::ActiveValue::NotSet,
                 game_id: Set(game_id_copy),
                 round_number: Set(round_number as i32),
-                bids: Set(serde_json::json!(bids)),
-                tricks_won: Set(serde_json::json!(tricks_won)),
-                scores: Set(serde_json::json!(round_scores)),
+                player_results: Set(serde_json::json!(player_results)),
             };
             if let Err(e) = round_model.insert(&self.db).await {
                 warn!("Failed to persist game_round to DB: {}", e);
@@ -273,7 +269,6 @@ impl GameManager {
         if let Some(winner) = trick_winner {
             let trick_msg = ServerMessage::TrickComplete {
                 winner: winner.clone(),
-                points: 0, // GBridge doesn't use points per trick
             };
             self.connection_manager.broadcast_to_players(&players, trick_msg).await;
             info!("Trick completed in game {}, winner: {}", game_id_copy, winner);
