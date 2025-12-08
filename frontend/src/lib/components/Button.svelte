@@ -1,9 +1,21 @@
 <script lang="ts">
-  export let variant: 'primary' | 'secondary' | 'outline' | 'ghost' = 'primary';
-  export let size: 'sm' | 'md' | 'lg' = 'md';
-  export let disabled = false;
-  export let type: 'button' | 'submit' | 'reset' = 'button';
-  export let fullWidth = false;
+const {
+  variant = 'primary',
+  size = 'md',
+  disabled = false,
+  type = 'button',
+  fullWidth = false,
+  onclick,
+  children = null
+} = $props<{
+  variant?: 'primary' | 'secondary' | 'outline' | 'ghost';
+  size?: 'sm' | 'md' | 'lg';
+  disabled?: boolean;
+  type?: 'button' | 'submit' | 'reset';
+  fullWidth?: boolean;
+  onclick?: (e: MouseEvent) => void;
+  children?: import('svelte').Snippet | null;
+}>();
 </script>
 
 <button
@@ -11,9 +23,11 @@
   class:full-width={fullWidth}
   {type}
   {disabled}
-  on:click
+  {onclick}
 >
-  <slot />
+  {#if children}
+    {@render children()}
+  {/if}
 </button>
 
 <style>

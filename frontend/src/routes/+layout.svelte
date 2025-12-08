@@ -3,9 +3,11 @@
   import { theme } from '$lib/stores/theme';
   import '../app.css';
   
+  const { children } = $props<{ children: import('svelte').Snippet }>();
+  
   onMount(() => {
     theme.init();
   });
 </script>
 
-<slot />
+{@render children()}

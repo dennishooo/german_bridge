@@ -1,11 +1,11 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
-  export let rank: string;
-  export let suit: string;
-  export let playable = false;
-  export let selected = false;
-
-  const dispatch = createEventDispatcher();
+  const { rank, suit, playable = false, selected = false, onclick } = $props<{
+    rank: string;
+    suit: string;
+    playable?: boolean;
+    selected?: boolean;
+    onclick?: () => void;
+  }>();
 
   // Map API suit names to symbols
   function getSuitSymbol(s: string) {
@@ -37,26 +37,26 @@
       }
   }
 
-  $: displaySuit = getSuitSymbol(suit);
-  $: displayRank = getRankShort(rank);
-  $: isRed = suit === "Hearts" || suit === "Diamonds";
+  const displaySuit = $derived(getSuitSymbol(suit));
+  const displayRank = $derived(getRankShort(rank));
+  const isRed = $derived(suit === "Hearts" || suit === "Diamonds");
 
   function handleClick() {
-    if (playable) {
-      dispatch('click');
+    if (playable && onclick) {
+      onclick();
     }
   }
 </script>
 
-<!-- svelte-ignore a11y-click-events-have-key-events -->
 <div 
   class="card" 
   class:red={isRed}
   class:playable 
   class:selected
-  on:click={handleClick}
+  onclick={handleClick}
   role="button"
   tabindex="0"
+  onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleClick(); }}
 >
   <div class="corner corner-top">
     <div class="rank">{displayRank}</div>

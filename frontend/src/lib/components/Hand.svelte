@@ -2,9 +2,7 @@
   import type { Card as CardType } from '../stores/websocket';
   import Card from './Card.svelte';
 
-  export let hand: CardType[] = [];
-  export let validActions: any[] | null = null;
-  export let onPlayCard: (card: CardType) => void;
+  const { hand = [], validActions = null, onPlayCard } = $props<{ hand?: CardType[]; validActions?: Array<any> | null; onPlayCard: (card: CardType) => void }>();
 
   // Suit order (from left to right)
   const suitOrder = { Clubs: 0, Diamonds: 1, Hearts: 2, Spades: 3 };
@@ -36,7 +34,7 @@
 
   function isCardValid(card: CardType): boolean {
     if (!validActions) return false;
-    return validActions.some(action => 
+    return (validActions as Array<any>).some((action: any) => 
       action.PlayCard && 
       action.PlayCard.suit === card.suit && 
       action.PlayCard.rank === card.rank
@@ -49,18 +47,21 @@
     }
   }
 
-  $: sortedHand = sortCards(hand);
+  // Svelte 5 idiomatic: $derived for computed values
+  const sortedHand = $derived(sortCards(hand));
 </script>
 
 <div class="hand">
   <div class="cards">
     {#each sortedHand as card}
-      <!-- svelte-ignore a11y-click-events-have-key-events -->
-      <!-- svelte-ignore a11y-no-static-element-interactions -->
       <div 
         class="card-wrapper" 
         class:valid={isCardValid(card)}
-        on:click={() => handleCardClick(card)}
+        tabindex="0"
+        role="button"
+        aria-pressed="false"
+        onclick={() => handleCardClick(card)}
+        onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleCardClick(card); }}
       >
         <Card rank={card.rank} suit={card.suit} />
         {#if !isCardValid(card) && validActions}

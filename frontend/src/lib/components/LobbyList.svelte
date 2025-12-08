@@ -35,7 +35,7 @@
               <p>Host: {lobby.host.slice(0, 8)}...</p>
               <p>Players: {lobby.players.length}</p>
             </div>
-            <Button on:click={() => joinLobby(lobby.id)} disabled={lobby.players.length >= lobby.max_players}>
+      <Button onclick={() => joinLobby(lobby.id)} disabled={lobby.players.length >= lobby.max_players}>
               {lobby.players.length >= lobby.max_players ? 'Full' : 'Join'}
             </Button>
           </div>
@@ -43,7 +43,7 @@
       {/if}
     </div>
     <div class="refresh-btn">
-        <Button variant="secondary" on:click={() => ws.listLobbies()}>Refresh List</Button>
+        <Button variant="secondary" onclick={() => ws.listLobbies()}>Refresh List</Button>
     </div>
   </div>
 
@@ -59,7 +59,7 @@
     </div>
 
     <div class="actions">
-        <Button on:click={createLobby}>Create Lobby</Button>
+        <Button onclick={createLobby}>Create Lobby</Button>
     </div>
   </div>
   
@@ -69,7 +69,7 @@
     <h2>Join by ID</h2>
     <div class="actions">
         <Input placeholder="Lobby ID" bind:value={joinLobbyId} />
-        <Button on:click={() => joinLobby(joinLobbyId)} disabled={!joinLobbyId}>Join</Button>
+        <Button onclick={() => joinLobby(joinLobbyId)} disabled={!joinLobbyId}>Join</Button>
     </div>
   </div>
 </div>
@@ -143,7 +143,7 @@
     font-size: 0.9rem;
   }
 
-  select, input {
+  input {
     padding: var(--spacing-sm);
     border-radius: var(--radius-md);
     border: 1px solid var(--border-color);

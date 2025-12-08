@@ -1,14 +1,13 @@
 <script lang="ts">
   import Button from './Button.svelte';
-  export let validBids: number[] = [];
-  export let onBid: (bid: number) => void;
+  const { validBids = [], onBid } = $props<{ validBids?: number[]; onBid: (bid: number) => void }>();
 </script>
 
 <div class="bid-controls">
   <h3>Place Your Bid</h3>
   <div class="bids-grid">
     {#each validBids as bid}
-      <Button variant="secondary" on:click={() => onBid(bid)}>
+      <Button variant="secondary" onclick={() => onBid(bid)}>
         {bid}
       </Button>
     {/each}

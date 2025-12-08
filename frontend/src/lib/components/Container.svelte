@@ -1,10 +1,9 @@
 <script lang="ts">
-  export let padding: 'sm' | 'md' | 'lg' = 'md';
-  export let shadow: 'sm' | 'md' | 'lg' = 'md';
+  const { padding = 'md', shadow = 'md', children } = $props<{ padding?: 'sm' | 'md' | 'lg'; shadow?: 'sm' | 'md' | 'lg'; children: import('svelte').Snippet }>();
 </script>
 
 <div class="container container-padding-{padding} container-shadow-{shadow}">
-  <slot />
+  {@render children()}
 </div>
 
 <style>

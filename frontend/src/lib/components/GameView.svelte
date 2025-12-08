@@ -7,37 +7,35 @@
   import Button from './Button.svelte';
   import Scorecard from './Scorecard.svelte';
 
-  let showHistoryModal = false;
-  let showRoundSummary = false;
+  let showHistoryModal = $state(false);
+  let showRoundSummary = $state(false);
   let roundSummaryTimeout: ReturnType<typeof setTimeout> | null = null;
 
-  $: game = $ws.game;
-  $: myPlayerId = $ws.playerId;
-  $: isMyTurn = game?.your_turn;
-  $: phase = game?.phase;
-  $: scores = game?.scores ?? {};
-  $: history = game?.history ?? [];
-  $: players = Object.keys(scores);
+  const game = $derived($ws.game);
+  const myPlayerId = $derived($ws.playerId);
+  const isMyTurn = $derived(game?.your_turn ?? false);
+  const phase = $derived(game?.phase);
+  const scores = $derived(game?.scores ?? {});
+  const history = $derived(game?.history ?? []);
+  const players = $derived(Object.keys(scores));
 
   // Handle round completion with delay to show final card
-  // Only show summary if game exists and phase is RoundComplete
-  $: if (game && phase === 'RoundComplete') {
-    // Clear any existing timeout
-    if (roundSummaryTimeout) {
-      clearTimeout(roundSummaryTimeout);
+  $effect(() => {
+    if (game && phase === 'RoundComplete') {
+      if (roundSummaryTimeout) {
+        clearTimeout(roundSummaryTimeout);
+      }
+      roundSummaryTimeout = setTimeout(() => {
+        showRoundSummary = true;
+      }, 2000);
+    } else {
+      showRoundSummary = false;
+      if (roundSummaryTimeout) {
+        clearTimeout(roundSummaryTimeout);
+        roundSummaryTimeout = null;
+      }
     }
-    // Show summary after a delay (2 seconds) so users can see the final card
-    roundSummaryTimeout = setTimeout(() => {
-      showRoundSummary = true;
-    }, 2000);
-  } else {
-    // Hide summary immediately when phase changes away from RoundComplete or game is null
-    showRoundSummary = false;
-    if (roundSummaryTimeout) {
-      clearTimeout(roundSummaryTimeout);
-      roundSummaryTimeout = null;
-    }
-  }
+  });
 
   // Cleanup timeout on component destroy
   onDestroy(() => {
@@ -47,11 +45,13 @@
   });
 
   // Compute valid actions
-  $: validBids = $ws.validActions
-      ?.filter(a => a.Bid !== undefined)
-      .map(a => a.Bid!.tricks) ?? [];
-      
-  $: canPlayCard = $ws.validActions?.some(a => a.PlayCard);
+  const validBids = $derived(
+    $ws.validActions
+      ?.filter((a) => a.Bid !== undefined)
+      .map((a) => a.Bid!.tricks) ?? []
+  );
+
+  const canPlayCard = $derived($ws.validActions?.some((a) => a.PlayCard) ?? false);
 
   function handleBid(bid: number) {
     ws.placeBid(bid);
@@ -88,12 +88,14 @@
           default: return p;
       }
   }
-  $: trumpDisplay = getSuitDisplay(game?.trump_suit);
+  const trumpDisplay = $derived(getSuitDisplay(game?.trump_suit));
 
   // Get current round's bid and make for the user
-  $: currentRound = game?.history?.[game.history.length - 1];
-  $: userBid = $ws.currentRoundBids[myPlayerId ?? ''] ?? '-';
-  $: userMake = $ws.currentRoundMakes[myPlayerId ?? ''] ?? '-';
+  const currentRound = $derived(
+    game?.history ? game.history[game.history.length - 1] : undefined
+  );
+  const userBid = $derived($ws.currentRoundBids[myPlayerId ?? ''] ?? '-');
+  const userMake = $derived($ws.currentRoundMakes[myPlayerId ?? ''] ?? '-');
 
   function getPlayerBidMake(pid: string) {
     const bid = $ws.currentRoundBids[pid];
@@ -160,7 +162,7 @@
                     <span class="value">{game.trump_suit ?? 'None'}</span>
                 </div>
             </div>
-            <Button size="sm" variant="secondary" on:click={() => (showHistoryModal = true)}>
+            <Button size="sm" variant="secondary" onclick={() => (showHistoryModal = true)}>
                 📊 History
             </Button>
         </div>
@@ -209,11 +211,11 @@
     {#if showHistoryModal}
         <!-- svelte-ignore a11y_click_events_have_key_events -->
         <!-- svelte-ignore a11y_no_static_element_interactions -->
-        <div class="overlay" on:click={() => (showHistoryModal = false)} role="button" tabindex="0">
+        <div class="overlay" onclick={() => (showHistoryModal = false)} role="button" tabindex="0">
             <!-- svelte-ignore a11y_click_events_have_key_events -->
             <!-- svelte-ignore a11y_no_static_element_interactions -->
-            <div class="history-modal" on:click={(e) => e.stopPropagation()} role="dialog" tabindex="-1">
-                <button class="history-close-btn" on:click={() => (showHistoryModal = false)}>&times;</button>
+            <div class="history-modal" onclick={(e) => e.stopPropagation()} role="dialog" tabindex="-1">
+                <button class="history-close-btn" onclick={() => (showHistoryModal = false)}>&times;</button>
                 <Scorecard {history} {players} myPlayerId={myPlayerId ?? ''} playerUsernames={$ws.playerUsernames} />
             </div>
         </div>
@@ -225,7 +227,7 @@
                 <Scorecard {history} {players} myPlayerId={myPlayerId ?? ''} playerUsernames={$ws.playerUsernames} />
                 <div class="summary-footer">
                     {#if game.current_player === myPlayerId}
-                        <Button variant="primary" on:click={() => ws.startNextRound()}>
+                        <Button variant="primary" onclick={() => ws.startNextRound()}>
                             Start Round {game.round_number + 1}
                         </Button>
                     {:else}
@@ -367,71 +369,6 @@
       align-items: center;
       position: relative;
       background: radial-gradient(circle at center, var(--bg-secondary) 0%, var(--bg-primary) 100%);
-  }
-  
-  .bidding-display {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: var(--spacing-lg);
-  }
-
-  .bidding-display h3 {
-      margin: 0;
-      color: var(--text-primary);
-  }
-
-  .bids-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-      gap: var(--spacing-md);
-      width: 100%;
-      max-width: 500px;
-  }
-
-  .bid-card {
-      background: var(--bg-tertiary);
-      border: 2px solid var(--border-color);
-      border-radius: var(--radius-md);
-      padding: var(--spacing-md);
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: var(--spacing-xs);
-      transition: all 0.2s;
-  }
-
-  .bid-card.your-bid {
-      border-color: var(--color-primary);
-      box-shadow: 0 0 8px rgba(59, 130, 246, 0.3);
-  }
-
-  .bid-card.awaiting {
-      opacity: 0.6;
-      background: var(--bg-secondary);
-  }
-
-  .bid-name {
-      font-size: 0.85rem;
-      font-weight: 600;
-      color: var(--text-primary);
-  }
-
-  .bid-value {
-      font-size: 2rem;
-      font-weight: bold;
-      color: var(--color-primary);
-      min-height: 2.5rem;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-  }
-
-  .bid-label {
-      font-size: 0.7rem;
-      color: var(--text-secondary);
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
   }
   
   .trick-area {
@@ -631,24 +568,4 @@
       to { transform: translateY(0); opacity: 1; }
   }
 
-  .summary-scores {
-      display: flex;
-      flex-direction: column;
-      gap: var(--spacing-sm);
-      margin: var(--spacing-lg) 0;
-  }
-
-  .summary-item {
-      display: flex;
-      justify-content: space-between;
-      padding: var(--spacing-sm);
-      background: var(--bg-tertiary);
-      border-radius: var(--radius-md);
-      font-size: 1.1rem;
-  }
-  
-  .summary-item .score {
-      font-weight: bold;
-      color: var(--color-primary-500);
-  }
 </style>

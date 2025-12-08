@@ -17,10 +17,10 @@
     }
   });
 
-  $: connected = $ws.connected;
-  $: lobby = $ws.lobby;
-  $: game = $ws.game;
-  $: error = $ws.error;
+  const connected = $derived($ws.connected);
+  const lobby = $derived($ws.lobby);
+  const game = $derived($ws.game);
+  const error = $derived($ws.error);
 </script>
 
 <div class="page">
@@ -28,14 +28,14 @@
     <h1 class="title">German Bridge</h1>
     <div class="header-controls">
         {#if connected}
-            <span class="status connected">Connected</span>
-            {#if $ws.username}
-                <span class="player-id">👤 {$ws.username}</span>
-            {/if}
-            <Button size="sm" variant="secondary" on:click={() => ws.logout()}>Logout</Button>
+          <span class="status connected">Connected</span>
+          {#if $ws.username}
+            <span class="player-id">👤 {$ws.username}</span>
+          {/if}
+          <Button size="sm" variant="secondary" onclick={() => ws.logout()}>Logout</Button>
         {:else}
-            <span class="status disconnected">Disconnected</span>
-            <Button size="sm" on:click={async () => await ws.connect()}>Connect</Button>
+          <span class="status disconnected">Disconnected</span>
+          <Button size="sm" onclick={async () => await ws.connect()}>Connect</Button>
         {/if}
         <ThemeToggle />
     </div>
@@ -43,20 +43,20 @@
   
   <main class="container">
     {#if error}
-        <div class="error-banner">
-            {error}
-            <button class="close-btn" on:click={() => $ws.error = null}>&times;</button>
-        </div>
+      <div class="error-banner">
+        {error}
+            <button class="close-btn" onclick={() => $ws.error = null}>&times;</button>
+      </div>
     {/if}
 
     {#if !connected}
        <Auth />
     {:else if game}
-        <GameView />
+      <GameView />
     {:else if lobby}
-        <LobbyView />
+      <LobbyView />
     {:else}
-        <LobbyList />
+      <LobbyList />
     {/if}
   </main>
 </div>
@@ -118,8 +118,10 @@
   
   .container {
     flex: 1;
-    padding: var(--spacing-lg);
+    padding: 0;
     overflow: hidden; /* For game view */
+    display: flex;
+    flex-direction: column;
   }
   
   .error-banner {
@@ -141,12 +143,4 @@
       cursor: pointer;
   }
   
-  .welcome {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      height: 100%;
-      color: var(--text-secondary);
-  }
 </style>

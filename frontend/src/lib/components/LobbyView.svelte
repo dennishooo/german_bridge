@@ -2,10 +2,10 @@
   import { ws } from '../stores/websocket';
   import Button from './Button.svelte';
 
-  $: lobby = $ws.lobby;
-  $: isHost = lobby && lobby.host === $ws.playerId;
+  const lobby = $derived($ws.lobby);
+  const isHost = $derived(lobby && lobby.host === $ws.playerId);
   // Allow starting with 2+ players for testing/flexibility, matching backend logic
-  $: canStart = isHost && lobby && lobby.players.length >= 2;
+  const canStart = $derived(isHost && lobby && lobby.players.length >= 2);
 
   function startGame() {
     ws.startGame();
@@ -51,13 +51,13 @@
 
     <div class="actions">
       {#if isHost}
-        <Button on:click={startGame} disabled={!canStart} variant="primary">
+        <Button onclick={startGame} disabled={!canStart} variant="primary">
           Start Game
         </Button>
       {:else}
         <div class="waiting-msg">Waiting for host to start...</div>
       {/if}
-      <Button on:click={leaveLobby} variant="secondary">Leave Lobby</Button>
+      <Button onclick={leaveLobby} variant="secondary">Leave Lobby</Button>
     </div>
   {:else}
     <p>Loading lobby...</p>

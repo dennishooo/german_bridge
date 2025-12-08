@@ -2,11 +2,11 @@
   import { ws } from "../stores/websocket";
   import Button from "./Button.svelte";
 
-  let mode: "login" | "register" = "login";
-  let username = "";
-  let password = "";
-  let error = "";
-  let loading = false;
+  let mode = $state<"login" | "register">("login");
+  let username = $state("");
+  let password = $state("");
+  let error = $state("");
+  let loading = $state(false);
 
   async function handleSubmit() {
     error = "";
@@ -71,10 +71,6 @@
     mode = mode === "login" ? "register" : "login";
     error = "";
   }
-
-  function handleLogout() {
-    ws.logout();
-  }
 </script>
 
 <div class="auth-container">
@@ -82,11 +78,11 @@
     <h2>{mode === "login" ? "Welcome Back" : "Create Account"}</h2>
     
     <div class="tabs">
-      <button class:active={mode === "login"} on:click={() => mode = "login"}>Login</button>
-      <button class:active={mode === "register"} on:click={() => mode = "register"}>Register</button>
+      <button class:active={mode === "login"} onclick={() => mode = "login"}>Login</button>
+      <button class:active={mode === "register"} onclick={() => mode = "register"}>Register</button>
     </div>
 
-    <form on:submit|preventDefault={handleSubmit}>
+    <form onsubmit={(e) => { e.preventDefault(); handleSubmit(); }}>
       <div class="field">
         <label for="username">Username</label>
         <input type="text" id="username" bind:value={username} placeholder="Enter username" />

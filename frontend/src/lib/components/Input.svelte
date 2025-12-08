@@ -1,25 +1,30 @@
 <script lang="ts">
-  export let value = '';
-  export let placeholder = '';
-  export let type: 'text' | 'email' | 'password' | 'number' = 'text';
-  export let disabled = false;
-  export let label = '';
+let {
+  value = $bindable(''),
+  placeholder = '',
+  type = 'text',
+  disabled = false,
+  label = ''
+} = $props<{
+  value?: string;
+  placeholder?: string;
+  type?: 'text' | 'email' | 'password' | 'number';
+  disabled?: boolean;
+  label?: string;
+}>();
 </script>
 
 <div class="input-wrapper">
   {#if label}
-    <label class="input-label">{label}</label>
+    <label class="input-label" for="input-field">{label}</label>
   {/if}
   <input
     class="input"
+    id="input-field"
     {type}
     {placeholder}
     {disabled}
-    bind:value
-    on:input
-    on:change
-    on:focus
-    on:blur
+    bind:value={value}
   />
 </div>
 
