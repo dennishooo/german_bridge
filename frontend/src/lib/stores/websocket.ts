@@ -119,39 +119,45 @@ function createWebSocketStore() {
   let pingInterval: ReturnType<typeof setInterval>;
 
   async function getApiUrl(): Promise<string> {
-    try {
-      // Try to get server IP from Tauri backend
-      let serverIp: string;
-      try {
-        serverIp = await invoke<string>("get_server_ip");
-      } catch (e) {
-        console.log("Tauri invoke failed, using browser location:", e);
-        serverIp = window.location.hostname;
-      }
-
-      const host = serverIp || "localhost";
-      return `http://${host}:8080`;
-    } catch (error) {
-      console.error("Failed to determine API URL:", error);
-      return "http://localhost:8080";
+    // Use environment variable if set, otherwise derive from window location
+    const envUrl = import.meta.env.VITE_API_URL;
+    if (envUrl) {
+      return envUrl;
     }
+
+    // For production/Docker: use same host as the frontend
+    const protocol = window.location.protocol;
+    const host = window.location.hostname;
+    const port =
+      window.location.port === "80" || window.location.port === "443"
+        ? ""
+        : ":8080";
+    return `${protocol}//${host}${port}`;
   }
 
   async function connect(token?: string) {
     if (ws) return;
 
     try {
-      // Determine Host (similar logic as getApiUrl but for WS)
-      let serverIp: string;
-      try {
-        serverIp = await invoke<string>("get_server_ip");
-      } catch (e) {
-        serverIp = window.location.hostname;
-      }
-      const host = serverIp || "localhost";
+      // Use environment variable if set, otherwise derive from window location
+      let wsUrl: string;
+      const envWsUrl = import.meta.env.VITE_WS_URL;
 
-      // Append token if provided
-      let url = `ws://${host}:8080/ws`;
+      if (envWsUrl) {
+        wsUrl = envWsUrl;
+      } else {
+        // For production/Docker: use same host as the frontend
+        const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+        const host = window.location.hostname;
+        const port =
+          window.location.port === "80" || window.location.port === "443"
+            ? ""
+            : ":8080";
+        wsUrl = `${protocol}//${host}${port}`;
+      }
+
+      // Append /ws path and token if provided
+      let url = `${wsUrl}/ws`;
       if (token) {
         url += `?token=${encodeURIComponent(token)}`;
       }
