@@ -29,8 +29,8 @@ RUN touch src/lib.rs src/main.rs && \
 # Stage 2: Create a minimal runtime image
 FROM alpine:latest
 
-# Install runtime dependencies
-RUN apk add --no-cache libgcc
+# Install runtime dependencies (curl for health checks)
+RUN apk add --no-cache libgcc curl
 
 # Create a non-root user
 RUN addgroup -g 1000 appuser && \
