@@ -275,25 +275,34 @@ function createWebSocketStore() {
         case "GameState":
           // Reset current round tracking when starting a NEW round (round number changed)
           const previousRound = newState.game?.round_number;
+          const previousPhase = newState.game?.phase;
           newState.game = msg.payload.state;
 
+          // Detect round transition: new round number OR transitioning from RoundComplete to Bidding
+          const isNewRound =
+            newState.game &&
+            (newState.game.round_number !== previousRound ||
+              (previousPhase === "RoundComplete" &&
+                newState.game.phase === "Bidding"));
+
           // Populate currentRoundBids and currentRoundMakes from current_round
-          if (newState.game?.current_round) {
+          if (
+            newState.game?.current_round &&
+            newState.game.current_round.length > 0
+          ) {
             const bids: Record<string, number> = {};
             const makes: Record<string, number> = {};
             for (const result of newState.game.current_round) {
-              if (result.bid > 0) {
+              // Track all bids including 0 - use undefined check instead of > 0
+              if (result.bid !== undefined && result.bid !== null) {
                 bids[result.player_id] = result.bid;
               }
               makes[result.player_id] = result.tricks_won;
             }
             newState.currentRoundBids = bids;
             newState.currentRoundMakes = makes;
-          } else if (
-            newState.game?.phase === "Bidding" &&
-            newState.game.round_number !== previousRound
-          ) {
-            // Only reset if starting a new round and no current_round data
+          } else if (isNewRound || newState.game?.phase === "Bidding") {
+            // Reset for new round or when in bidding phase with no current_round data
             newState.currentRoundBids = {};
             newState.currentRoundMakes = {};
           }
@@ -363,6 +372,12 @@ function createWebSocketStore() {
               [msg.payload.winner]:
                 (newState.currentRoundMakes[msg.payload.winner] || 0) + 1,
             };
+          }
+          // Clear the current trick after a brief delay would be handled client-side
+          // but the server should send new state that clears it
+          if (newState.game) {
+            // Don't clear immediately - let the UI show the winning trick briefly
+            // The next GameState or PlayerAction will update it
           }
           break;
         case "GameOver":

@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { onDestroy } from 'svelte';
   import { ws, type Card as CardType } from '../stores/websocket';
   import Hand from './Hand.svelte';
   import Card from './Card.svelte';
@@ -17,7 +16,17 @@
   const phase = $derived(game?.phase);
   const scores = $derived(game?.scores ?? {});
   const history = $derived(game?.history ?? []);
-  const players = $derived(Object.keys(scores));
+  // Sort players consistently - current player first, then alphabetically by ID
+  // This ensures stable ordering across re-renders
+  const players = $derived(
+    Object.keys(scores).sort((a, b) => {
+      // Put current user first if present
+      if (a === myPlayerId) return -1;
+      if (b === myPlayerId) return 1;
+      // Then sort alphabetically by ID for consistency
+      return a.localeCompare(b);
+    })
+  );
 
   // Handle round completion with delay to show final card
   $effect(() => {
@@ -35,13 +44,14 @@
         roundSummaryTimeout = null;
       }
     }
-  });
-
-  // Cleanup timeout on component destroy
-  onDestroy(() => {
-    if (roundSummaryTimeout) {
-      clearTimeout(roundSummaryTimeout);
-    }
+    
+    // Svelte 5: Return cleanup function from $effect
+    return () => {
+      if (roundSummaryTimeout) {
+        clearTimeout(roundSummaryTimeout);
+        roundSummaryTimeout = null;
+      }
+    };
   });
 
   // Compute valid actions

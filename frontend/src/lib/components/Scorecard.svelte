@@ -28,20 +28,28 @@
     return playerResult || { player_id: pid, bid: 0, tricks_won: 0, score: 0 };
   }
   
-  // Calculate totals for the footer
-    const totals = $derived(() =>
-        players.reduce((acc: Record<string, { bids: number, made: number, diff: number, score: number }>, pid: PlayerId) => {
-            acc[pid] = history.reduce((playerTotals: { bids: number, made: number, diff: number, score: number }, round: RoundResult) => {
-                const data = getPlayerRoundData(round, pid);
-                playerTotals.bids += data.bid;
-                playerTotals.made += data.tricks_won;
-                playerTotals.diff += (data.bid - data.tricks_won);
-                playerTotals.score += data.score;
-                return playerTotals;
-            }, { bids: 0, made: 0, diff: 0, score: 0 });
-            return acc;
-        }, {} as Record<string, { bids: number, made: number, diff: number, score: number }>)
-    );
+  // Calculate totals for the footer - return a function that provides safe access
+  const totals = $derived(() => {
+    const result: Record<string, { bids: number, made: number, diff: number, score: number }> = {};
+    
+    // Initialize all players with zero values first
+    for (const pid of players) {
+      result[pid] = { bids: 0, made: 0, diff: 0, score: 0 };
+    }
+    
+    // Then accumulate from history
+    for (const pid of players) {
+      for (const round of history) {
+        const data = getPlayerRoundData(round, pid);
+        result[pid].bids += data.bid ?? 0;
+        result[pid].made += data.tricks_won ?? 0;
+        result[pid].diff += (data.bid ?? 0) - (data.tricks_won ?? 0);
+        result[pid].score += data.score ?? 0;
+      }
+    }
+    
+    return result;
+  });
 </script>
 
 <div class="scorecard">
@@ -88,10 +96,11 @@
               <tr>
                   <td class="sticky-col total-label">Total</td>
                   {#each players as pid}
-                      <td class="val footer-val">{totals()[pid].bids}</td>
-                      <td class="val footer-val">{totals()[pid].made}</td>
-                      <td class="val footer-val diff-val">{totals()[pid].diff}</td>
-                      <td class="val total-score">{totals()[pid].score}</td>
+                      {@const playerTotals = totals()[pid] ?? { bids: 0, made: 0, diff: 0, score: 0 }}
+                      <td class="val footer-val">{playerTotals.bids}</td>
+                      <td class="val footer-val">{playerTotals.made}</td>
+                      <td class="val footer-val diff-val">{playerTotals.diff}</td>
+                      <td class="val total-score">{playerTotals.score}</td>
                   {/each}
               </tr>
           </tfoot>
