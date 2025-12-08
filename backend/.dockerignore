@@ -1,0 +1,7 @@
+target/
+db_data/
+*.md
+.git/
+.gitignore
+tests/
+test_*.sh

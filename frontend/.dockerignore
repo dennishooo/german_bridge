@@ -1,0 +1,7 @@
+node_modules/
+build/
+.svelte-kit/
+*.md
+.git/
+.gitignore
+src-tauri/
