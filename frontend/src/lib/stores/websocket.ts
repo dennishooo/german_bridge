@@ -129,9 +129,7 @@ function createWebSocketStore() {
     const protocol = window.location.protocol;
     const host = window.location.hostname;
     const port =
-      window.location.port === "80" || window.location.port === "443"
-        ? ""
-        : "";
+      window.location.port === "80" || window.location.port === "443" ? "" : "";
     return `${protocol}//${host}${port}`;
   }
 
@@ -302,13 +300,17 @@ function createWebSocketStore() {
           break;
         case "YourTurn":
           newState.validActions = msg.payload.valid_actions;
-          if (newState.game) newState.game.your_turn = true;
+          if (newState.game) {
+            newState.game = { ...newState.game, your_turn: true };
+          }
           break;
         case "PlayerAction":
           const { player_id, action, next_player } = msg.payload;
           if (newState.game) {
-            // Update current_player
-            if (next_player) newState.game.current_player = next_player;
+            // Update current_player - create new game object for reactivity
+            if (next_player) {
+              newState.game = { ...newState.game, current_player: next_player };
+            }
 
             // Handle PlayCard
             if (action.PlayCard) {
@@ -334,7 +336,7 @@ function createWebSocketStore() {
                   (c) => c.suit !== card.suit || c.rank !== card.rank
                 );
                 newState.validActions = null;
-                newState.game.your_turn = false;
+                newState.game = { ...newState.game, your_turn: false };
               }
             }
             // Handle Bid - ensure reactivity by creating new object
@@ -344,6 +346,12 @@ function createWebSocketStore() {
                 [player_id]: action.Bid.tricks,
               };
               newState.currentRoundBids = updatedBids;
+
+              // If it's me who bid, clear my turn
+              if (player_id === newState.playerId) {
+                newState.validActions = null;
+                newState.game = { ...newState.game, your_turn: false };
+              }
             }
           }
           break;
