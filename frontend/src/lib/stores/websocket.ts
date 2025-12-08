@@ -119,9 +119,9 @@ function createWebSocketStore() {
   let pingInterval: ReturnType<typeof setInterval>;
 
   async function getApiUrl(): Promise<string> {
-    // Use environment variable if set, otherwise derive from window location
+    // Use environment variable if set and not empty
     const envUrl = import.meta.env.VITE_API_URL;
-    if (envUrl) {
+    if (envUrl && envUrl.trim() !== "") {
       return envUrl;
     }
 
@@ -131,7 +131,7 @@ function createWebSocketStore() {
     const port =
       window.location.port === "80" || window.location.port === "443"
         ? ""
-        : ":8080";
+        : "";
     return `${protocol}//${host}${port}`;
   }
 
@@ -139,11 +139,11 @@ function createWebSocketStore() {
     if (ws) return;
 
     try {
-      // Use environment variable if set, otherwise derive from window location
+      // Use environment variable if set and not empty
       let wsUrl: string;
       const envWsUrl = import.meta.env.VITE_WS_URL;
 
-      if (envWsUrl) {
+      if (envWsUrl && envWsUrl.trim() !== "") {
         wsUrl = envWsUrl;
       } else {
         // For production/Docker: use same host as the frontend
@@ -152,7 +152,7 @@ function createWebSocketStore() {
         const port =
           window.location.port === "80" || window.location.port === "443"
             ? ""
-            : ":8080";
+            : "";
         wsUrl = `${protocol}//${host}${port}`;
       }
 
