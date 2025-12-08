@@ -104,11 +104,12 @@
   
   .card-wrapper:hover {
       transform: translateY(-20px);
-      z-index: 10;
+      z-index: 100;
   }
   
   .card-wrapper.valid:hover {
       transform: translateY(-30px) scale(1.05);
+      z-index: 100;
   }
 
   .overlay {

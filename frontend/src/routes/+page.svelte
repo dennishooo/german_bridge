@@ -41,7 +41,7 @@
     </div>
   </header>
   
-  <main class="container">
+  <main class="page-container">
     {#if error}
       <div class="error-banner">
         {error}
@@ -66,6 +66,7 @@
     min-height: 100vh;
     display: flex;
     flex-direction: column;
+    width: 100%;
   }
   
   .header {
@@ -116,12 +117,15 @@
     margin: 0;
   }
   
-  .container {
+  .page-container {
     flex: 1;
     padding: 0;
     overflow: hidden; /* For game view */
     display: flex;
     flex-direction: column;
+    width: 100%;
+    max-width: none;
+    margin: 0;
   }
   
   .error-banner {

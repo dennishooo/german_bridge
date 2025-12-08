@@ -250,6 +250,11 @@
     max-height: 100vh;
     background: var(--bg-primary);
     overflow: hidden;
+        width: 100%;
+        max-width: 100%;
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
   }
   
   .header {
